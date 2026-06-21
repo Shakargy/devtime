@@ -1,140 +1,117 @@
 # DevTime — PROOF
 
-Evidence that DevTime V0 does what it claims, on real repositories — and an honest
-list of where it is still weak. Built and validated locally; AI off, cloud off,
-telemetry off, no code execution, no network.
+Evidence that DevTime V0 does what it claims, on a demo repo and on real
+repositories — plus an honest account of where it is still weak. Everything here is
+local: AI off, cloud off, telemetry off, no code execution, no network.
 
-## 1. Current V0 status
+## 1. Current version
 
-A local-first Engineering Intelligence CLI (`dtc`) that scans a repository, detects
-concepts, links them to evidence, generates governed claims with visible
-uncertainty, scores Understanding Debt, reviews diffs against memory, and produces
-Context Packs for humans and AI agents. SQLite memory in `.devtime/`.
-
+- Version `0.1.0`. Tags: `v0.0.1-proof`, `v0.0.2-reality`, and this `v0.0.3-public-candidate`.
 - Tests: **33 passing** (`pytest`) — unit, integration, and 16 fixtures.
-- Trust laws enforced as executable gates: no claim without evidence; usage is not
-  decision; uncertainty is output; ignored secrets never become evidence.
 
-### v0.0.2 Reality Hardening
+## 2. What works
 
-Two highest-confidence limitations from Reality Validation, fixed (no new features):
+CLI: `dtc init`, `dtc scan`, `dtc concepts`, `dtc explain`, `dtc evidence`,
+`dtc context`, `dtc risk --diff`, `dtc decision add`, `dtc debt`, `dtc status`,
+`dtc doctor --privacy`, `dtc export`, `dtc reset`.
 
-- **File-local Billing Webhooks gate.** Billing Webhooks now requires webhook and
-  billing evidence to be local to each other (same file / provider signature
-  handler), not merely present somewhere in the repo. Result on real repos: API
-  Graveyard's generic webhook-delivery system is **no longer** mislabelled Billing
-  Webhooks (its only billing association was an e2e spec path), while Snapilio's
-  PayPal webhook and the demo's Stripe webhook are still correctly detected.
-- **Walker prunes ignored directories before traversal.** node_modules, .git,
-  build output, .next/.sst, .devtime, etc. are skipped instead of walked-then-
-  filtered. API Graveyard scan time dropped from **~27.3s to ~0.48s** (≈56×), with
-  identical privacy behaviour (secrets under ignored paths are never visited).
-
-## 2. Commands that work
-
-```
-dtc init                         # create local memory
-dtc scan                         # detect concepts/evidence/claims (no code exec, no network)
-dtc concepts                     # list detected concepts with confidence + debt
-dtc explain <concept>            # claims + evidence + uncertainty + Understanding Debt
-dtc evidence <concept>           # raw evidence list with strength
-dtc context <concept> --mode risk# governed Context Pack for agents
-dtc risk --diff --base <ref>     # memory-aware review of a diff
-dtc decision add --title .. --body ..   # record rationale (closes Understanding Debt)
-dtc doctor --privacy             # privacy/boundary checks
-dtc export --format json|markdown
-dtc status / dtc reset
-```
+Trust laws enforced as executable gates: *no claim without evidence*, *usage is not
+decision*, *uncertainty is output*, and *ignored secrets never become evidence*.
 
 ## 3. Demo repo proof (`examples/demo-saas`)
 
-`dtc scan` detects Authentication, Billing Webhooks, Background Jobs, Data Export,
-Admin Permissions. Billing Webhooks correctly reports **"No decision was found"**
-and scores lower than Authentication (which has an ADR). `dtc risk --diff` on a
-retry-behavior change flags: *"Retry behavior changed without duplicate-delivery
-test changes"* (high). `dtc decision add` drops Billing Webhooks debt 56 → 72 and
-clears the uncertainty.
+`dtc scan` detects Authentication, Billing Webhooks, Background Jobs, Data Export, and
+Admin Permissions in `38 signals` across `15 files` in ~0.1s.
 
-## 4. Real-repo validation results
+- **Authentication scores higher because an ADR exists** (`docs/decisions/0001-use-jwt.md`):
+  its "why" is documented.
+- **Billing Webhooks scores lower because no decision exists**: strong behavior
+  evidence (route + Stripe signature verification + test) but Understanding Debt
+  `56/100` with explicit uncertainty "No decision was found explaining key choices".
 
-Validated against three real repositories (see `reports/reality-validation/`):
+## 4. Real repo validation proof
+
+Validated against three real repositories (reports in `reports/reality-validation/`):
 API Graveyard (FastAPI + TS), Snapilio (Next.js/SST), SaaSVoice (Next.js/SST).
 
-| Repo | Files | Signals | Key failure found |
-|------|-------|---------|-------------------|
-| API Graveyard | 355 | 1468 | "Billing Webhooks" false positive on a generic webhook system; Context Pack fabricated billing warnings; migration file used as Background Jobs evidence; e2e specs polluting evidence |
-| Snapilio | 186 | 649 | Next.js App Router routes invisible → every concept degraded to weak dependency evidence; `//` path bug |
-| SaaSVoice | 125 | 508 | NextAuth + all API routes missed; auth reported with no route evidence |
+| Repo | Files | Signals | Headline finding |
+|------|-------|---------|------------------|
+| API Graveyard | 355 | ~1.4k | False "Billing Webhooks" on a generic webhook system; migration mis-used as Background Jobs evidence |
+| Snapilio | 186 | 649 | Next.js App Router routes invisible → everything degraded to weak evidence |
+| SaaSVoice | 125 | 508 | NextAuth + all API routes missed |
 
-The single highest-leverage finding (two of three repos): **DevTime could not see the
-Next.js App Router**, the most common TS API stack.
+## 5. Before / after examples
 
-## 5. Before / after
+**Snapilio — Authentication:** before `confidence: medium` (dependency/doc only);
+after **`confidence: high`** with real `app/api/.../route.ts` route evidence.
 
-**Snapilio — Authentication**
-- Before: `confidence: medium`, evidence `dependency, doc, middleware`; claim was
-  only "has related dependencies present".
-- After: `confidence: high`, evidence now includes `route`; claim "Authentication
-  has active route handling" anchored on real `app/api/.../route.ts` handlers.
+**API Graveyard — Billing Webhooks:** before, a generic webhook delivery system was
+**mislabelled** Billing Webhooks; after the file-local evidence gate, it is **no
+longer detected** (its only billing association was an e2e spec path). Real billing
+webhooks (Snapilio PayPal, demo Stripe) are still correctly detected.
 
-**Snapilio — Billing Webhooks**
-- Before: weak dependency-only, no behavior.
-- After: `route` evidence + "has active route handling", anchored on the real
-  `app/api/paypal/webhook/route.ts`.
+**Demo — the decision loop:** `dtc explain "Billing Webhooks"` → Understanding Debt
+`56/100` with uncertainty. After `dtc decision add`, the uncertainty clears and debt
+improves to **`72/100`**.
 
-**API Graveyard — Background Jobs**
-- Before: evidence included `backend/alembic/versions/..._add_jobs.py` (a DB migration).
-- After: migrations excluded; no migration files in evidence.
+**Demo — risk review:** with retry behavior changed and no duplicate-delivery test
+touched, `dtc risk --diff` flags **high severity**: "Retry behavior changed without
+duplicate-delivery test changes."
 
-**API Graveyard — Context Pack**
-- Before: "Do Not Change: Signature verification behavior / Subscription state
-  transition mapping" — fabricated, no billing evidence in repo.
-- After: warnings derived from actual evidence ("Token issuing and verification
-  behavior", "Authorization / protected-route behavior", "Request handling for …").
+## 6. Fixture learning loop
 
-## 6. Fixtures added (10 new, from real failures)
+Every real failure became a fixture so it cannot silently regress:
 
-| Fixture | Locks in |
-|---------|----------|
-| `nextjs/nextjs-data-export-route` | App Router `route.ts` GET → Data Export route |
-| `nextjs/nextauth-authentication` | `api/auth/[...nextauth]/route.ts` → Authentication route |
-| `nextjs/paypal-webhook-is-billing` | PayPal webhook route → Billing Webhooks (real billing) |
-| `nextjs/nextjs-file-upload-route` | upload route → File Uploads |
-| `nextjs/nextjs-admin-route` | admin route → Admin Permissions |
-| `webhooks/generic-webhook-not-billing` | generic webhook must NOT be "Billing Webhooks" |
-| `jobs/migration-not-background-job` | migration file must NOT be Background Jobs evidence |
-| `evidence/e2e-spec-weak` | e2e UI spec must not define a concept alone |
-| `evidence/dependency-only-weak` | dependency-only concept stays weak + uncertain |
-| `express/express-named-router` | `authRouter.post(...)` detected (named routers) |
+- **Next.js App Router was initially missed**, then fixed and locked in by fixtures
+  (`nextjs-data-export-route`, `nextauth-authentication`, `paypal-webhook-is-billing`,
+  `nextjs-file-upload-route`, `nextjs-admin-route`).
+- **False Billing Webhooks detection was fixed by file-local evidence gating**, locked
+  in by `generic-webhook-not-billing`, `stripe-dep-alone-not-billing`,
+  `generic-webhook-plus-unrelated-billing-dep`, and the positive
+  `billing-webhook-local-stripe`.
+- Migration exclusion, e2e down-weighting, weak-only concepts, and named Express
+  routers each have fixtures too.
 
-Backed by scanner/claim fixes: Next.js extractor (`scanner/extractors/nextjs.py`),
-billing-evidence gate + weak-only gate (`intelligence/concepts.py`), evidence-derived
-Context Pack warnings (`intelligence/context_pack.py`), migration exclusion and e2e
-down-weighting (`scanner/signals.py`, `scanner/extractors/tests.py`), path
-normalization (`scanner/file_walker.py`).
+Fixtures grew the suite from 13 → **33 tests**.
 
-## 7. Known limitations (honest)
+## 7. Performance hardening
 
-- **Detection is pattern/regex-based.** Express, FastAPI, and Next.js App Router are
-  covered; other frameworks (NestJS, Django, Flask, Rails, Go) are not yet parsed.
-- **Billing proximity is file-level, not function-level.** Fixed to file-local in
-  v0.0.2 (repo-wide deps and generic webhooks no longer infer Billing Webhooks). A
-  single kitchen-sink file that references both webhooks and billing in unrelated
-  code could still co-locate tokens; function/route-level proximity is a future step.
-- **No git-history signals.** Freshness is a fixed placeholder; ownership is always
-  unconfirmed; lineage is not yet implemented.
-- **MCP transport not wired.** Tool logic exists; the server only describes the
-  read-only contract.
-- **AI provider disabled.** No narration provider is shipped.
-- Validation covered 3 real repos + the demo. Two more (a random open-source TS repo
-  and a standalone FastAPI repo) are planned on dedicated branches.
+The scanner now prunes ignored directories before traversal (`os.walk` +
+`PRUNE_DIRS`). **API Graveyard scan time improved from ~27.3s to ~0.48s (≈56×)**, with
+identical privacy behavior (secrets under ignored paths are never visited).
 
-## 8. Next recommended milestone
+## 8. Trust laws covered by tests
 
-Billing-gate file-locality and walker pruning are done (v0.0.2). Next: V0 Public
-Readiness — README trust model, clean-install instructions, CI green from a clean
-clone, a short demo. Then expand validation to 2 more open-source repos and grow the
-fixture suite. Only after that: `dtc doctor`, `dtc claim show <id>`,
-`dtc export --markdown` polish.
+- *No claim without evidence* — `tests/unit/test_claims.py`.
+- *Usage is not decision* — `tests/unit/test_claims.py`.
+- *Uncertainty is output* — scoring/claims tests assert missing-decision uncertainty.
+- *Ignored secrets never become evidence* — `tests/fixtures/test_privacy_fixtures.py`,
+  `tests/unit/test_walker_prune.py`.
+- *Risk review fires on the right change* — `tests/integration/test_risk_review.py`.
 
-> The milestone reached: **DevTime learned 10 real repo patterns and will not forget them.**
+## 9. What DevTime still does not do
+
+Heuristic scanner (not a compiler); limited framework coverage (strongest on
+TS/Next.js/Express/FastAPI); no git-history signals; MCP transport unwired; no AI
+provider; risk review advisory only; local-first with no cloud/team/UI. Full list in
+**[LIMITATIONS.md](LIMITATIONS.md)**.
+
+## 10. Next validation targets
+
+A standalone open-source FastAPI repo and a random open-source TypeScript repo, plus
+larger-repo performance profiling. Each new wrong output should become a fixture.
+
+---
+
+## Clean-install verification
+
+A fresh `git clone` was installed and exercised end to end:
+
+| Field | Result |
+|-------|--------|
+| OS | Windows 11 (Git Bash) |
+| Python | 3.11.9 |
+| Install command | `pip install -e ".[dev]"` |
+| Test result | **33 passed** |
+| Demo result | `dtc init` / `dtc scan` / `dtc concepts` / `dtc explain "Billing Webhooks"` all produced expected output from a clean clone |
+| Issue found & fixed | `dtc risk --diff` produced no findings when the scan root is a subdirectory of the git repo (path mismatch). Fixed with `git diff --relative`; the demo risk step now works. |

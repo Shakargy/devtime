@@ -1,0 +1,122 @@
+# Quickstart
+
+Get DevTime running and see the proof in a few minutes.
+
+## 1. Requirements
+
+- **Python ≥ 3.11** (developed and verified on 3.11.9)
+- **git**
+- A terminal. Works on Windows, macOS, and Linux.
+
+## 2. Clone
+
+```bash
+git clone https://github.com/Shakargy/devtime.git
+cd devtime
+```
+
+## 3. Install
+
+```bash
+python -m venv .venv
+source .venv/bin/activate          # Windows (PowerShell): .venv\Scripts\Activate.ps1
+                                   # Windows (Git Bash):   source .venv/Scripts/activate
+pip install -e ".[dev]"
+```
+
+This installs the `dtc` command into the virtual environment.
+
+## 4. Run tests
+
+```bash
+pytest
+```
+
+Expected: **33 passed**.
+
+## 5. Run the demo
+
+DevTime scans the **current directory**, so run the demo from inside the sample app:
+
+```bash
+cd examples/demo-saas
+dtc init
+dtc scan
+dtc concepts
+dtc explain "Authentication"
+dtc explain "Billing Webhooks"
+```
+
+To see risk review, see **[DEMO_SCRIPT.md](DEMO_SCRIPT.md)** (it shows how to create
+a safe demo diff and revert it).
+
+## 6. Expected output
+
+`dtc scan`:
+
+```
+Scan complete. 15 files, 38 signals, 5 concepts in 0.1s.
+```
+
+`dtc concepts` (order may vary):
+
+```
+1. Billing Webhooks   confidence: high    debt: medium
+2. Authentication     confidence: high    debt: medium
+3. Background Jobs    confidence: medium  debt: high
+4. Data Export        confidence: medium  debt: high
+5. Admin Permissions  confidence: medium  debt: high
+```
+
+`dtc explain "Billing Webhooks"` shows supported claims with evidence, an
+**Uncertainty** section ("No decision was found explaining key choices…"), and an
+**Understanding Debt** score of `56 / 100`.
+
+`dtc explain "Authentication"` scores higher, because the demo includes a decision
+record (`docs/decisions/0001-use-jwt.md`).
+
+## 7. Troubleshooting
+
+- **`dtc: command not found`** — your virtual environment is not active. Re-run the
+  activate command from step 3, or call the module directly: `python -m devtime.cli ...`.
+- **`DevTime is not initialized`** — run `dtc init` in the directory you want to scan.
+- **`No concept found matching '...'`** — run `dtc concepts` to see the exact names
+  (they are case-insensitive but must otherwise match).
+- **`risk --diff` shows no findings** — risk review needs a git diff in the current
+  directory. See DEMO_SCRIPT.md for the prepared demo change.
+
+## 8. Reset local memory
+
+DevTime's memory lives in `.devtime/` and is safe to delete. Your source code is
+never modified.
+
+```bash
+dtc reset            # deletes .devtime/ after confirmation
+# or simply:
+rm -rf .devtime
+```
+
+## Clean-install verification (maintainers)
+
+A fresh-clone check was run on the current candidate:
+
+- **OS:** Windows 11 (Git Bash)
+- **Python:** 3.11.9
+- **Install:** `pip install -e ".[dev]"`
+- **Tests:** `33 passed`
+- **Demo:** `dtc init` / `dtc scan` / `dtc concepts` / `dtc explain "Billing Webhooks"`
+  all produced the expected output from a clean `git clone`.
+
+To repeat it:
+
+```bash
+cd /tmp
+git clone https://github.com/Shakargy/devtime.git devtime-clean-test
+cd devtime-clean-test
+python -m venv .venv
+source .venv/Scripts/activate       # or .venv/bin/activate
+pip install -e ".[dev]"
+pytest
+cd examples/demo-saas
+dtc init && dtc scan && dtc concepts && dtc explain "Billing Webhooks"
+```

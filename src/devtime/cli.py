@@ -164,8 +164,11 @@ def risk(
         raise typer.Exit(code=2)
 
     try:
+        # --relative emits paths relative to the current directory, so diff paths
+        # match scan-root-relative evidence even when the scan root is a subdirectory
+        # of the git repository (e.g. running the demo from examples/demo-saas).
         diff_text = subprocess.run(
-            ["git", "diff", base],
+            ["git", "diff", "--relative", base],
             capture_output=True,
             text=True,
             check=False,
