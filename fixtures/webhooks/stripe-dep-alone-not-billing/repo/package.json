@@ -1,0 +1,7 @@
+{
+  "name": "stripe-dep-only",
+  "dependencies": {
+    "stripe": "^15.0.0",
+    "express": "^4.19.0"
+  }
+}

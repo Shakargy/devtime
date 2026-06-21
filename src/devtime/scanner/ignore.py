@@ -27,6 +27,19 @@ HARD_DENY = [
     ".devtime/",
 ]
 
+# Directories pruned before traversal regardless of ignore files (Reality
+# Hardening): never descend into these, so large trees are skipped, not filtered.
+PRUNE_DIRS = {
+    "node_modules", ".git", "dist", "build", "coverage", ".next", "out",
+    "__pycache__", ".pytest_cache", ".venv", "venv", ".cache", ".devtime",
+    ".turbo", ".sst", ".open-next", ".svelte-kit", ".nuxt",
+}
+
+
+def is_pruned_dirname(name: str) -> bool:
+    return name in PRUNE_DIRS or name.endswith(".egg-info")
+
+
 BINARY_EXTENSIONS = {
     ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".svg",
     ".pdf", ".zip", ".gz", ".tar", ".7z", ".rar",
@@ -43,6 +56,15 @@ class IgnoreMatcher:
 
     def match(self, rel_path: str) -> bool:
         return self._spec.match_file(rel_path)
+
+    def match_dir(self, rel_dir: str) -> bool:
+        """True if a directory is ignored (so it can be pruned before traversal).
+
+        gitignore patterns may target a directory with or without a trailing
+        slash, so both forms are checked.
+        """
+        rel_dir = rel_dir.rstrip("/")
+        return self._spec.match_file(rel_dir) or self._spec.match_file(rel_dir + "/")
 
 
 def _read_patterns(path: Path) -> list[str]:

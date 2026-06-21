@@ -1,0 +1,16 @@
+id: generic-webhook-plus-unrelated-billing-dep
+type: false-positive
+language: typescript
+framework: nextjs
+# Reality Hardening (v0.0.2): a generic webhook receiver in one file, plus a Stripe
+# dependency declared elsewhere (package.json), must NOT infer Billing Webhooks.
+# Billing and webhook evidence are not file-local to each other.
+expected:
+  concepts: []
+  allowed_claims: []
+  forbidden_claims:
+    - "Billing Webhooks is present in this repository."
+    - "Billing Webhooks has active route handling."
+  required_uncertainty: []
+privacy:
+  contains_secrets: false

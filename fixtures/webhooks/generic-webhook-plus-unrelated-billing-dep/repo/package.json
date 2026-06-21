@@ -1,0 +1,7 @@
+{
+  "name": "generic-webhook-plus-stripe-dep",
+  "dependencies": {
+    "stripe": "^15.0.0",
+    "next": "^14.0.0"
+  }
+}

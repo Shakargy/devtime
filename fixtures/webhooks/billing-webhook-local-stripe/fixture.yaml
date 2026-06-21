@@ -1,0 +1,16 @@
+id: billing-webhook-local-stripe
+type: concept
+language: typescript
+framework: express
+# Reality Hardening (v0.0.2): a Stripe webhook route with signature verification and
+# a subscription state mutation, all local to the same file, IS Billing Webhooks.
+expected:
+  concepts:
+    - Billing Webhooks
+  allowed_claims:
+    - "Billing Webhooks has active route handling."
+    - "Billing Webhooks verifies webhook signatures."
+  forbidden_claims: []
+  required_uncertainty: []
+privacy:
+  contains_secrets: false

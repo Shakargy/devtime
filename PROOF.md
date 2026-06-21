@@ -11,9 +11,24 @@ concepts, links them to evidence, generates governed claims with visible
 uncertainty, scores Understanding Debt, reviews diffs against memory, and produces
 Context Packs for humans and AI agents. SQLite memory in `.devtime/`.
 
-- Tests: **27 passing** (`pytest`) — unit, integration, and 13 fixtures.
+- Tests: **33 passing** (`pytest`) — unit, integration, and 16 fixtures.
 - Trust laws enforced as executable gates: no claim without evidence; usage is not
   decision; uncertainty is output; ignored secrets never become evidence.
+
+### v0.0.2 Reality Hardening
+
+Two highest-confidence limitations from Reality Validation, fixed (no new features):
+
+- **File-local Billing Webhooks gate.** Billing Webhooks now requires webhook and
+  billing evidence to be local to each other (same file / provider signature
+  handler), not merely present somewhere in the repo. Result on real repos: API
+  Graveyard's generic webhook-delivery system is **no longer** mislabelled Billing
+  Webhooks (its only billing association was an e2e spec path), while Snapilio's
+  PayPal webhook and the demo's Stripe webhook are still correctly detected.
+- **Walker prunes ignored directories before traversal.** node_modules, .git,
+  build output, .next/.sst, .devtime, etc. are skipped instead of walked-then-
+  filtered. API Graveyard scan time dropped from **~27.3s to ~0.48s** (≈56×), with
+  identical privacy behaviour (secrets under ignored paths are never visited).
 
 ## 2. Commands that work
 
@@ -102,13 +117,12 @@ normalization (`scanner/file_walker.py`).
 
 - **Detection is pattern/regex-based.** Express, FastAPI, and Next.js App Router are
   covered; other frameworks (NestJS, Django, Flask, Rails, Go) are not yet parsed.
-- **Billing gate is repo-wide, not file-local.** A repo with billing tokens anywhere
-  can still allow a "Billing Webhooks" concept even if the matched webhook routes are
-  generic. Tightening to file-locality is a next step.
+- **Billing proximity is file-level, not function-level.** Fixed to file-local in
+  v0.0.2 (repo-wide deps and generic webhooks no longer infer Billing Webhooks). A
+  single kitchen-sink file that references both webhooks and billing in unrelated
+  code could still co-locate tokens; function/route-level proximity is a future step.
 - **No git-history signals.** Freshness is a fixed placeholder; ownership is always
   unconfirmed; lineage is not yet implemented.
-- **Performance:** the file walker descends into ignored directories before filtering
-  (~27s on a 355-file repo with large build output). Needs directory pruning.
 - **MCP transport not wired.** Tool logic exists; the server only describes the
   read-only contract.
 - **AI provider disabled.** No narration provider is shipped.
@@ -117,8 +131,10 @@ normalization (`scanner/file_walker.py`).
 
 ## 8. Next recommended milestone
 
-Tighten the billing gate to file-locality, add directory pruning to the walker, then
-expand validation to 2 more open-source repos and grow the fixture suite. Only after
-that: `dtc doctor`, `dtc claim show <id>`, `dtc export --markdown` polish.
+Billing-gate file-locality and walker pruning are done (v0.0.2). Next: V0 Public
+Readiness — README trust model, clean-install instructions, CI green from a clean
+clone, a short demo. Then expand validation to 2 more open-source repos and grow the
+fixture suite. Only after that: `dtc doctor`, `dtc claim show <id>`,
+`dtc export --markdown` polish.
 
 > The milestone reached: **DevTime learned 10 real repo patterns and will not forget them.**

@@ -92,7 +92,8 @@ def scan(
         raise typer.Exit(code=3)
     console.print(
         f"[green]Scan complete.[/green] {result.file_count} files, "
-        f"{result.signal_count} signals, {result.concept_count} concepts."
+        f"{result.signal_count} signals, {result.concept_count} concepts "
+        f"in {result.duration_seconds}s."
     )
     console.print("Nothing left this machine. Run [bold]dtc concepts[/bold] to inspect.")
 

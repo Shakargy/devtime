@@ -76,12 +76,17 @@ ANCHOR_KINDS = {
     "queue",
 }
 
-# Tokens that justify naming a concept "Billing Webhooks" (Reality Validation:
-# a generic webhook-delivery system must not be called Billing Webhooks).
-BILLING_TOKENS = (
+# Tokens that justify naming a concept "Billing Webhooks". Reality Hardening
+# (v0.0.2): billing evidence must be *file-local* to webhook evidence, not just
+# present somewhere in the repo.
+BILLING_PROVIDER_TOKENS = (
     "stripe", "paypal", "braintree", "chargebee", "lemonsqueezy", "paddle",
-    "billing", "subscription", "invoice", "checkout",
 )
+BILLING_TERM_TOKENS = (
+    "billing", "subscription", "invoice", "checkout", "payment",
+)
+BILLING_TOKENS = BILLING_PROVIDER_TOKENS + BILLING_TERM_TOKENS
+WEBHOOK_TOKENS = ("webhook",)
 
 
 @dataclass
@@ -167,13 +172,30 @@ def _meaningful_signals(matched: list[Signal]) -> list[Signal]:
 
 
 def _passes_billing_gate(slug: str, matched: list[Signal]) -> bool:
+    """Billing Webhooks requires webhook evidence and billing evidence that are
+    *local to each other* — in the same file (the tightest evidence cluster).
+
+    Reality Hardening (v0.0.2): a repo-wide Stripe dependency, or a generic webhook
+    system plus unrelated billing code elsewhere, must NOT infer Billing Webhooks.
+    """
     if slug != "billing_webhooks":
         return True
+
+    # A provider signature-verification handler (Stripe constructEvent, etc.) is by
+    # itself a local billing-webhook signal.
     if any(s.kind == "webhook_signature_verification" for s in matched):
         return True
+
+    # Otherwise require one file that has BOTH webhook and billing evidence.
+    by_file: dict[str, list[Signal]] = {}
     for s in matched:
-        hay = _signal_haystack(s)
-        if any(token in hay for token in BILLING_TOKENS):
+        by_file.setdefault(s.file_rel_path, []).append(s)
+
+    for file_path, sigs in by_file.items():
+        hay = file_path.lower() + " " + " ".join(_signal_haystack(s) for s in sigs)
+        has_webhook = any(tok in hay for tok in WEBHOOK_TOKENS)
+        has_billing = any(tok in hay for tok in BILLING_TOKENS)
+        if has_webhook and has_billing:
             return True
     return False
 
@@ -190,8 +212,10 @@ def detect_concepts(signals: list[Signal]) -> list[ConceptCandidate]:
         if not meaningful:
             continue
 
-        # Gate 2: "Billing" Webhooks needs billing evidence, not just the word webhook.
-        if not _passes_billing_gate(slug, matched):
+        # Gate 2: "Billing" Webhooks needs billing evidence local to webhook
+        # evidence. Only meaningful signals count — an e2e spec under a path like
+        # tests-e2e/specs/billing.e2e.spec.ts must not satisfy the billing gate.
+        if not _passes_billing_gate(slug, meaningful):
             continue
 
         score = score_template_match(template, matched)

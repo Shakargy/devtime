@@ -41,6 +41,7 @@ class ScanResult:
     signal_count: int
     concept_count: int
     intelligence: list[claims_mod.ConceptIntelligence]
+    duration_seconds: float = 0.0
 
 
 def _now() -> str:
@@ -95,6 +96,9 @@ def _extract(file: WalkedFile, language: str | None) -> list[Signal]:
 
 
 def run_scan(root: Path | None = None, *, refresh: bool = False) -> ScanResult:
+    import time
+
+    started = time.perf_counter()
     root = root or paths.repo_root()
     if not paths.is_initialized(root):
         migrations.init_repo(root)
@@ -194,6 +198,7 @@ def run_scan(root: Path | None = None, *, refresh: bool = False) -> ScanResult:
             signal_count=len(all_signals),
             concept_count=len(intelligence),
             intelligence=intelligence,
+            duration_seconds=round(time.perf_counter() - started, 2),
         )
     finally:
         conn.close()

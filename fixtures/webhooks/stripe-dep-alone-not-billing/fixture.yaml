@@ -1,0 +1,15 @@
+id: stripe-dep-alone-not-billing
+type: false-positive
+language: typescript
+framework: none
+# Reality Hardening (v0.0.2): a Stripe dependency in package.json, with no local
+# webhook handling, must NOT infer Billing Webhooks.
+expected:
+  concepts: []
+  allowed_claims: []
+  forbidden_claims:
+    - "Billing Webhooks is present in this repository."
+    - "Billing Webhooks has active route handling."
+  required_uncertainty: []
+privacy:
+  contains_secrets: false
