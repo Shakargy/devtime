@@ -1,0 +1,7 @@
+{
+  "name": "jwt-fixture",
+  "dependencies": {
+    "express": "^4.19.0",
+    "jsonwebtoken": "^9.0.0"
+  }
+}

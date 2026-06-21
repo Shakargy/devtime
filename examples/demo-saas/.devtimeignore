@@ -1,0 +1,23 @@
+# Secrets
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+secrets.*
+credentials.*
+service-account*.json
+
+# Generated
+node_modules/
+dist/
+build/
+coverage/
+.next/
+.cache/
+
+# VCS
+.git/

@@ -1,0 +1,16 @@
+id: stripe-webhooks-basic
+type: concept
+language: typescript
+framework: express
+expected:
+  concepts:
+    - Billing Webhooks
+  allowed_claims:
+    - "Billing Webhooks verifies webhook signatures."
+    - "Billing Webhooks has active route handling."
+  forbidden_claims:
+    - "Billing Webhooks were chosen because"
+  required_uncertainty:
+    - "No decision was found explaining key choices for Billing Webhooks."
+privacy:
+  contains_secrets: false

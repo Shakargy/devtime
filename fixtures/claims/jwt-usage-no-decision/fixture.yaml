@@ -1,0 +1,15 @@
+id: jwt-usage-no-decision
+type: claim
+language: typescript
+framework: express
+expected:
+  concepts:
+    - Authentication
+  allowed_claims:
+    - "Authentication uses JWT access tokens."
+  forbidden_claims:
+    - "JWT was chosen because the team wanted stateless authentication."
+  required_uncertainty:
+    - "No decision was found explaining key choices for Authentication."
+privacy:
+  contains_secrets: false

@@ -1,0 +1,28 @@
+# DevTime local memory
+.devtime/
+*.sqlite
+
+# Secrets / local environment
+.env
+.env.*
+*.pem
+*.key
+
+# Node
+node_modules/
+dist/
+build/
+coverage/
+.next/
+.cache/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# OS
+.DS_Store

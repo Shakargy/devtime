@@ -1,0 +1,28 @@
+# Advisory DevTime risk review (Builder Edition, Appendix F).
+# Starts advisory: exits 0 even when findings exist. Never blocks a PR on weak claims.
+name: devtime-risk-review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  devtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -e .
+      - run: dtc init
+      - run: dtc scan
+      - run: dtc risk --diff --base origin/main --format markdown > devtime-risk.md
+      - run: cat devtime-risk.md
+      # Commenting can be added later. First version keeps output as an artifact/summary.
