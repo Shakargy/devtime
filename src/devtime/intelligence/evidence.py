@@ -53,6 +53,9 @@ def map_signal_to_evidence_kind(kind: str) -> str:
 
 def estimate_strength(s: Signal) -> str:
     if s.kind == "test":
+        # E2E UI specs match keywords by accident -> weak (Reality Validation).
+        if s.metadata.get("e2e"):
+            return "weak"
         # Behavior-specific test names are strong; bare test presence is medium.
         return "strong" if s.name and len(s.name) > 8 else "medium"
     if s.kind in STRONG_KINDS:

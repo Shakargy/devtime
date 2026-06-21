@@ -1,0 +1,16 @@
+id: express-named-router
+type: regression
+language: typescript
+framework: express
+# Reality Validation (demo + common pattern): Express named routers (authRouter.post)
+# must be detected, not only literal app/router.
+expected:
+  concepts:
+    - Authentication
+  allowed_claims:
+    - "Authentication has active route handling."
+    - "Authentication uses JWT access tokens."
+  forbidden_claims: []
+  required_uncertainty: []
+privacy:
+  contains_secrets: false

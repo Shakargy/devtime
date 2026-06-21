@@ -1,0 +1,14 @@
+id: nextjs-data-export-route
+type: concept
+language: typescript
+framework: nextjs
+# Reality Validation (SaaSVoice): app/api/.../route.ts handlers were invisible.
+expected:
+  concepts:
+    - Data Export
+  allowed_claims:
+    - "Data Export has active route handling."
+  forbidden_claims: []
+  required_uncertainty: []
+privacy:
+  contains_secrets: false

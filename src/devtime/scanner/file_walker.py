@@ -34,6 +34,9 @@ def walk_repository(
         if not path.is_file():
             continue
         rel = path.relative_to(root).as_posix()
+        # Defensive normalisation so evidence paths never show // (Reality Validation).
+        while "//" in rel:
+            rel = rel.replace("//", "/")
         if ignore_matcher.match(rel):
             continue
         if path.is_symlink() and not follow_symlinks:

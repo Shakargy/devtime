@@ -1,0 +1,14 @@
+id: nextauth-authentication
+type: concept
+language: typescript
+framework: nextjs
+# Reality Validation (SaaSVoice): api/auth/[...nextauth]/route.ts missed as auth route.
+expected:
+  concepts:
+    - Authentication
+  allowed_claims:
+    - "Authentication has active route handling."
+  forbidden_claims: []
+  required_uncertainty: []
+privacy:
+  contains_secrets: false

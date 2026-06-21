@@ -1,0 +1,14 @@
+id: e2e-spec-weak
+type: false-positive
+language: typescript
+framework: playwright
+# Reality Validation (API Graveyard): an e2e UI spec mentioning "upload" was
+# defining File Uploads on its own. E2E specs are weak, not concept-defining.
+expected:
+  concepts: []
+  allowed_claims: []
+  forbidden_claims:
+    - "File Uploads is present in this repository."
+  required_uncertainty: []
+privacy:
+  contains_secrets: false

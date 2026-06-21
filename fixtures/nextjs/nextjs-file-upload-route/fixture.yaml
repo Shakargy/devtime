@@ -1,0 +1,13 @@
+id: nextjs-file-upload-route
+type: concept
+language: typescript
+framework: nextjs
+expected:
+  concepts:
+    - File Uploads
+  allowed_claims:
+    - "File Uploads has active route handling."
+  forbidden_claims: []
+  required_uncertainty: []
+privacy:
+  contains_secrets: false

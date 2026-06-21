@@ -126,6 +126,20 @@ def generate_claims_and_uncertainty(
 
     # --- Uncertainty generation (uncertainty is output) ---
 
+    # Presence-only evidence: dependencies/manifests but no parsed behavior.
+    if getattr(concept, "weak_only", False):
+        uncertainties.append(
+            Uncertainty(
+                type="presence_only_evidence",
+                text=(
+                    f"Only dependency or manifest evidence was found for "
+                    f"{concept.name}; presence is not confirmed behavior."
+                ),
+                action=f"Confirm {concept.name} behavior, or treat this as a weak signal.",
+                severity="medium",
+            )
+        )
+
     # Missing decision evidence.
     has_decision = bool(_has(evidence, "decision"))
     if not has_decision:

@@ -1,0 +1,6 @@
+{
+  "name": "dep-only",
+  "dependencies": {
+    "stripe": "^15.0.0"
+  }
+}

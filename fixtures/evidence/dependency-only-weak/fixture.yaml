@@ -1,0 +1,17 @@
+id: dependency-only-weak
+type: weak-evidence
+language: typescript
+framework: none
+# Reality Validation (SaaSVoice/Snapilio): a concept supported only by a
+# package.json dependency must stay weak and carry uncertainty (presence != behavior).
+expected:
+  concepts:
+    - Billing Webhooks
+  allowed_claims:
+    - "Billing Webhooks has related dependencies present."
+  forbidden_claims:
+    - "Billing Webhooks has active route handling."
+  required_uncertainty:
+    - "presence is not confirmed behavior"
+privacy:
+  contains_secrets: false

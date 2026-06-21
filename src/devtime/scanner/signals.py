@@ -25,6 +25,7 @@ from devtime.scanner import ignore as ignore_mod
 from devtime.scanner.extractors import (
     config_files,
     docs,
+    nextjs,
     python,
     tests,
     typescript,
@@ -57,7 +58,27 @@ def _hash_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def _is_migration_path(rel_path: str) -> bool:
+    """DB migrations describe schema history, not live behavior or workers.
+
+    Reality Validation finding: an Alembic migration named *_add_jobs.py was being
+    used as Background Jobs evidence. Migration files must not produce
+    concept-defining signals.
+    """
+    low = rel_path.lower()
+    return (
+        "/migrations/" in low
+        or low.startswith("migrations/")
+        or "/alembic/versions/" in low
+        or "alembic/versions/" in low
+    )
+
+
 def _extract(file: WalkedFile, language: str | None) -> list[Signal]:
+    # Migrations are scanned/hashed but never become concept evidence.
+    if _is_migration_path(file.rel_path):
+        return []
+
     out: list[Signal] = []
     if file.is_test:
         out += tests.extract_test_signals(file)
@@ -65,6 +86,7 @@ def _extract(file: WalkedFile, language: str | None) -> list[Signal]:
         out += docs.extract_doc_signals(file)
     if language == "typescript":
         out += typescript.extract_typescript_signals(file)
+        out += nextjs.extract_nextjs_signals(file)
     elif language == "python":
         out += python.extract_python_signals(file)
     # Config/manifest extraction by filename, regardless of language.

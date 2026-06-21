@@ -1,0 +1,13 @@
+id: nextjs-admin-route
+type: concept
+language: typescript
+framework: nextjs
+expected:
+  concepts:
+    - Admin Permissions
+  allowed_claims:
+    - "Admin Permissions has active route handling."
+  forbidden_claims: []
+  required_uncertainty: []
+privacy:
+  contains_secrets: false

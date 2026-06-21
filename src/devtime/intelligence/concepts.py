@@ -65,6 +65,25 @@ FORBIDDEN_NAMES = {
 }
 
 
+# Signal kinds that prove behavior, not just presence.
+ANCHOR_KINDS = {
+    "route",
+    "auth_dependency",
+    "middleware",
+    "webhook_signature_verification",
+    "background_job",
+    "token_usage",
+    "queue",
+}
+
+# Tokens that justify naming a concept "Billing Webhooks" (Reality Validation:
+# a generic webhook-delivery system must not be called Billing Webhooks).
+BILLING_TOKENS = (
+    "stripe", "paypal", "braintree", "chargebee", "lemonsqueezy", "paddle",
+    "billing", "subscription", "invoice", "checkout",
+)
+
+
 @dataclass
 class ConceptCandidate:
     slug: str
@@ -72,6 +91,7 @@ class ConceptCandidate:
     kind: str
     confidence: float
     signals: list[Signal] = field(default_factory=list)
+    weak_only: bool = False  # supported only by presence evidence, not behavior
 
 
 def _slugify(name: str) -> str:
@@ -134,21 +154,65 @@ def _remove_generic(candidates: list[ConceptCandidate]) -> list[ConceptCandidate
     return [c for c in candidates if c.name.lower() not in FORBIDDEN_NAMES]
 
 
+def _meaningful_signals(matched: list[Signal]) -> list[Signal]:
+    """Signals that can legitimately define a concept (excludes e2e tests + docs)."""
+    out = []
+    for s in matched:
+        if s.kind == "doc":
+            continue
+        if s.kind == "test" and s.metadata.get("e2e"):
+            continue
+        out.append(s)
+    return out
+
+
+def _passes_billing_gate(slug: str, matched: list[Signal]) -> bool:
+    if slug != "billing_webhooks":
+        return True
+    if any(s.kind == "webhook_signature_verification" for s in matched):
+        return True
+    for s in matched:
+        hay = _signal_haystack(s)
+        if any(token in hay for token in BILLING_TOKENS):
+            return True
+    return False
+
+
 def detect_concepts(signals: list[Signal]) -> list[ConceptCandidate]:
     candidates: list[ConceptCandidate] = []
     for slug, template in CONCEPT_TEMPLATES.items():
         matched = [s for s in signals if signal_matches_template(s, template)]
+        if not matched:
+            continue
+
+        # Gate 1: drop concepts defined only by e2e specs or docs.
+        meaningful = _meaningful_signals(matched)
+        if not meaningful:
+            continue
+
+        # Gate 2: "Billing" Webhooks needs billing evidence, not just the word webhook.
+        if not _passes_billing_gate(slug, matched):
+            continue
+
         score = score_template_match(template, matched)
-        if score >= template["min_score"] and matched:
-            candidates.append(
-                ConceptCandidate(
-                    slug=slug,
-                    name=template["display_name"],
-                    kind=template["kind"],
-                    confidence=score,
-                    signals=matched,
-                )
+        if score < template["min_score"]:
+            continue
+
+        # Weak-only: presence evidence (deps/config) but no behavior anchor.
+        weak_only = not any(s.kind in ANCHOR_KINDS for s in matched)
+        if weak_only:
+            score = min(score, 0.45)
+
+        candidates.append(
+            ConceptCandidate(
+                slug=slug,
+                name=template["display_name"],
+                kind=template["kind"],
+                confidence=score,
+                signals=matched,
+                weak_only=weak_only,
             )
+        )
     candidates = _merge_overlapping(candidates)
     candidates = _remove_generic(candidates)
     candidates.sort(key=lambda c: c.confidence, reverse=True)

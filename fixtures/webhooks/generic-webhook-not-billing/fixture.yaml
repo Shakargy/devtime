@@ -1,0 +1,15 @@
+id: generic-webhook-not-billing
+type: false-positive
+language: typescript
+framework: nextjs
+# Reality Validation (API Graveyard): a generic webhook-delivery system was named
+# "Billing Webhooks" purely on the word "webhook". It must not be.
+expected:
+  concepts: []
+  allowed_claims: []
+  forbidden_claims:
+    - "Billing Webhooks is present in this repository."
+    - "Billing Webhooks has active route handling."
+  required_uncertainty: []
+privacy:
+  contains_secrets: false

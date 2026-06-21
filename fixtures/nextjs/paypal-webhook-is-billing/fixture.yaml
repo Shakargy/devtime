@@ -1,0 +1,14 @@
+id: paypal-webhook-is-billing
+type: concept
+language: typescript
+framework: nextjs
+# Reality Validation (Snapilio): app/api/paypal/webhook/route.ts is a real billing webhook.
+expected:
+  concepts:
+    - Billing Webhooks
+  allowed_claims:
+    - "Billing Webhooks has active route handling."
+  forbidden_claims: []
+  required_uncertainty: []
+privacy:
+  contains_secrets: false

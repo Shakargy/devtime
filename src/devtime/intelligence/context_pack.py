@@ -29,19 +29,29 @@ class ContextPack:
     generated_at: str = ""
 
 
-def _do_not_change_for(name: str) -> list[str]:
-    table = {
-        "Billing Webhooks": [
-            "Signature verification behavior.",
-            "Idempotency behavior.",
-            "Subscription state transition mapping.",
-        ],
-        "Authentication": [
-            "Token issuing and verification behavior.",
-            "Protected route middleware wiring.",
-        ],
-    }
-    return table.get(name, ["Core behavior of this concept without a reviewer."])
+def _do_not_change_warnings(ci: ConceptIntelligence) -> list[str]:
+    """Derive 'do not change' warnings from actual evidence, never a hardcoded
+    per-name table.
+
+    Reality Validation finding: the old table asserted billing-specific warnings
+    ("Subscription state transition mapping") for a generic webhook system with no
+    billing evidence — a claim with no evidence. Warnings must follow evidence.
+    """
+    kinds = {e.signal.kind for e in ci.evidence}
+    warnings: list[str] = []
+    if "webhook_signature_verification" in kinds:
+        warnings.append("Webhook signature verification behavior.")
+    if "token_usage" in kinds:
+        warnings.append("Token issuing and verification behavior.")
+    if "auth_dependency" in kinds or "middleware" in kinds:
+        warnings.append("Authorization / protected-route behavior.")
+    if "route" in kinds:
+        warnings.append(f"Request handling behavior for {ci.concept.name}.")
+    if "background_job" in kinds or "queue" in kinds:
+        warnings.append("Job/queue processing behavior.")
+    if not warnings:
+        warnings.append(f"Core behavior of {ci.concept.name} without a reviewer.")
+    return warnings
 
 
 def generate_context_pack(ci: ConceptIntelligence, mode: str = "risk") -> ContextPack:
@@ -77,7 +87,7 @@ def generate_context_pack(ci: ConceptIntelligence, mode: str = "risk") -> Contex
         supported_claims=supported,
         decisions=decisions,
         uncertainty=uncertainty,
-        do_not_change=_do_not_change_for(ci.concept.name),
+        do_not_change=_do_not_change_warnings(ci),
         tests_to_run=tests or ["No behavior-specific tests found."],
         agent_guidance=guidance,
         generated_at=datetime.now(timezone.utc).isoformat(),

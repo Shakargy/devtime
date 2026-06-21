@@ -1,0 +1,14 @@
+id: migration-not-background-job
+type: false-positive
+language: python
+framework: alembic
+# Reality Validation (API Graveyard): an Alembic migration named *_add_jobs.py was
+# used as Background Jobs evidence. Migrations are schema history, not workers.
+expected:
+  concepts: []
+  allowed_claims: []
+  forbidden_claims:
+    - "Background Jobs is present in this repository."
+  required_uncertainty: []
+privacy:
+  contains_secrets: false
