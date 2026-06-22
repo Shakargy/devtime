@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation (README)
+    url: https://github.com/Shakargy/devtime/blob/main/README.md
+    about: How DevTime works, the trust model, install, and commands.
+  - name: Known limitations
+    url: https://github.com/Shakargy/devtime/blob/main/LIMITATIONS.md
+    about: Read this first — accuracy, framework coverage, and what is intentionally not built yet.

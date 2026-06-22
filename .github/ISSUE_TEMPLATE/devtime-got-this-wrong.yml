@@ -1,0 +1,140 @@
+name: DevTime got this wrong
+description: Report a wrong or weak DevTime output so it can be turned into a fixture.
+title: "[wrong-output] <short summary>"
+labels: ["reviewer-feedback", "needs-fixture"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing DevTime. The goal of this report is to capture a wrong or weak
+        output in a shape we can turn into a **fixture** (a small repo pattern with expected
+        concepts, allowed/forbidden claims, and required uncertainty) so it never regresses.
+
+        Please do **not** paste secrets or private source code. File paths and small
+        sanitized snippets are enough.
+
+  - type: dropdown
+    id: repo_type
+    attributes:
+      label: Repository type
+      description: What kind of repository were you scanning?
+      options:
+        - Next.js
+        - FastAPI
+        - Express
+        - Django
+        - Flask
+        - NestJS
+        - Monorepo
+        - Package / library
+        - CLI
+        - Other (describe in notes)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: command
+    attributes:
+      label: DevTime command run
+      description: Which command produced the wrong output?
+      options:
+        - dtc scan
+        - dtc concepts
+        - dtc explain
+        - dtc context
+        - dtc risk --diff
+        - dtc decision add
+        - dtc evidence
+        - dtc debt
+        - Other (describe in notes)
+    validations:
+      required: true
+
+  - type: textarea
+    id: what_devtime_said
+    attributes:
+      label: What DevTime said
+      description: Paste the relevant output (trim anything sensitive).
+      render: text
+    validations:
+      required: true
+
+  - type: dropdown
+    id: what_was_wrong
+    attributes:
+      label: What was wrong
+      multiple: true
+      options:
+        - Wrong concept detected
+        - Missing concept
+        - Bad evidence
+        - Unsupported claim
+        - Missing uncertainty
+        - Confidence too high
+        - Risk warning wrong
+        - Risk warning missing
+        - Privacy or ignored file issue
+        - Performance issue
+        - Documentation confusion
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: should_have_said
+    attributes:
+      label: What DevTime should have said instead
+      description: Describe the correct concept, claim, evidence, or uncertainty you expected.
+    validations:
+      required: true
+
+  - type: textarea
+    id: relevant_paths
+    attributes:
+      label: Relevant files or paths
+      description: |
+        File paths only (not secrets or private source) unless you are comfortable sharing.
+        e.g. `app/api/webhooks/route.ts`, `backend/app/api/v1/auth.py`
+    validations:
+      required: false
+
+  - type: dropdown
+    id: fixture_consent
+    attributes:
+      label: Is this safe to turn into a fixture?
+      options:
+        - "Yes, you may use this pattern as a fixture"
+        - "Yes, but anonymize paths/names"
+        - "No, use only as private feedback"
+    validations:
+      required: true
+
+  - type: textarea
+    id: minimal_repro
+    attributes:
+      label: Minimal reproduction
+      description: A small, sanitized example that reproduces the behavior, if possible.
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Fill in what you can.
+      value: |
+        - OS:
+        - Python version:
+        - DevTime version or tag:
+        - Command output / scan summary (if available):
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional_notes
+    attributes:
+      label: Additional notes
+      description: Anything else that would help us reproduce or understand the issue.
+    validations:
+      required: false
