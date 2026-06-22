@@ -1,0 +1,15 @@
+id: bg-tasks-test-attaches-to-background-jobs
+type: concept
+language: python
+framework: celery
+# Evidence Precision (v0.0.7, Plane-style): a direct bg_tasks test that imports a
+# bgtasks implementation must attach to Background Jobs (not only File Uploads).
+expected:
+  concepts:
+    - Background Jobs
+  allowed_claims:
+    - "Background Jobs"
+  forbidden_claims: []
+  required_uncertainty: []
+privacy:
+  contains_secrets: false

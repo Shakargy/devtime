@@ -1,0 +1,15 @@
+id: job-role-options-not-background-jobs
+type: false-positive
+language: typescript
+framework: none
+# Evidence Precision (v0.0.7, Twenty-style): employment job-role/title option
+# taxonomy is not Background Jobs.
+expected:
+  concepts: []
+  allowed_claims: []
+  forbidden_claims:
+    - "Background Jobs is present"
+    - "Possible Background Jobs signals"
+  required_uncertainty: []
+privacy:
+  contains_secrets: false

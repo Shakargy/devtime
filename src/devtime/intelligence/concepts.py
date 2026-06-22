@@ -32,8 +32,9 @@ CONCEPT_TEMPLATES: dict[str, dict] = {
     "background_jobs": {
         "display_name": "Background Jobs",
         "kind": "system_concept",
-        "names": ["queue", "worker", "job", "celery", "bullmq", "redis"],
-        "signals": ["background_job", "queue", "dependency", "config"],
+        "names": ["queue", "worker", "celery", "bullmq", "sidekiq", "bgtask",
+                  "bg_task", "bg-task", "bgtasks", "cron job"],
+        "signals": ["background_job", "queue", "dependency", "config", "test"],
         "min_score": 0.4,
     },
     "data_export": {
@@ -84,11 +85,30 @@ ANCHOR_KINDS = {
 BILLING_PROVIDER_TOKENS = (
     "stripe", "paypal", "braintree", "chargebee", "lemonsqueezy", "paddle", "razorpay",
 )
+# Explicit payment/billing terms (Evidence Precision v0.0.7). "subscription" and
+# "customer" alone are NOT here — they appear in calendar/CRM contexts too.
 BILLING_TERM_TOKENS = (
-    "billing", "invoice", "checkout", "payment", "customer.subscription",
+    "billing", "invoice", "invoices", "checkout", "payment", "payments",
+    "charge", "charges", "customer.subscription",
 )
 BILLING_TOKENS = BILLING_PROVIDER_TOKENS + BILLING_TERM_TOKENS
 WEBHOOK_TOKENS = ("webhook",)
+
+# Negative billing contexts: webhook routes that are clearly NOT payment webhooks.
+# A billing concept here requires an explicit payment provider to override.
+NEGATIVE_BILLING_CONTEXTS = (
+    "calendar", "credential", "connector", "monitor", "scheduler", "cron",
+    "webhooktrigger", "webhook-trigger", "webhook_trigger", "github", "fireflies",
+    "recall", "resend", "ses", "oauth", "cleanup",
+)
+
+# Employment / person taxonomy that must never become Background Jobs.
+EMPLOYMENT_NEG_TOKENS = (
+    "job title", "job-title", "jobtitle", "job_title", "job role", "job-role",
+    "jobrole", "job_role", "job class", "job-class", "job_class", "job sub-role",
+    "sub-role", "employment", "occupation", "position title", "role options",
+    "title options", "role-options", "title-options",
+)
 
 # Execution dependencies that justify a Background Jobs concept on their own.
 JOB_EXECUTION_DEPS = (
@@ -199,7 +219,18 @@ def _has_concept_anchor(slug: str, matched: list[Signal]) -> bool:
     if slug == "background_jobs":
         if {"background_job", "queue"} & kinds:
             return True
-        return dep_hit(JOB_EXECUTION_DEPS)
+        if dep_hit(JOB_EXECUTION_DEPS):
+            return True
+        # A direct background-task test (path or import references bg_tasks/celery/etc).
+        for s in matched:
+            hay = _signal_haystack(s)
+            if _is_employment(hay):
+                continue
+            if any(t in hay for t in ("bgtask", "bg_task", "bg-task", "bgtasks",
+                                      "celery", "sidekiq", "bullmq", "worker",
+                                      "queue", "cron job", "scheduler")):
+                return True
+        return False
 
     if slug == "file_uploads":
         if "upload_endpoint" in kinds:
@@ -250,22 +281,27 @@ def _has_concept_anchor(slug: str, matched: list[Signal]) -> bool:
     return True
 
 
-def _passes_billing_gate(slug: str, matched: list[Signal]) -> bool:
-    """Billing Webhooks requires webhook evidence and billing evidence that are
-    *local to each other* — in the same file (the tightest evidence cluster).
+def _is_employment(hay: str) -> bool:
+    return any(t in hay for t in EMPLOYMENT_NEG_TOKENS)
 
-    Reality Hardening (v0.0.2): a repo-wide Stripe dependency, or a generic webhook
-    system plus unrelated billing code elsewhere, must NOT infer Billing Webhooks.
+
+def _passes_billing_gate(slug: str, matched: list[Signal]) -> bool:
+    """Billing Webhooks requires webhook evidence and *payment-provider* evidence
+    local to each other.
+
+    Evidence Precision (v0.0.7): a webhook in a negative context (calendar,
+    credential, connector, monitor, scheduler, cron, generic trigger) is NOT billing
+    unless an explicit payment provider (Stripe/PayPal/...) is local. "subscription"
+    and "customer" alone do not count.
     """
     if slug != "billing_webhooks":
         return True
 
     # A provider signature-verification handler (Stripe constructEvent, etc.) is by
-    # itself a local billing-webhook signal.
+    # itself a local payment-provider signal.
     if any(s.kind == "webhook_signature_verification" for s in matched):
         return True
 
-    # Otherwise require one file that has BOTH webhook and billing evidence.
     by_file: dict[str, list[Signal]] = {}
     for s in matched:
         by_file.setdefault(s.file_rel_path, []).append(s)
@@ -273,10 +309,60 @@ def _passes_billing_gate(slug: str, matched: list[Signal]) -> bool:
     for file_path, sigs in by_file.items():
         hay = file_path.lower() + " " + " ".join(_signal_haystack(s) for s in sigs)
         has_webhook = any(tok in hay for tok in WEBHOOK_TOKENS)
-        has_billing = any(tok in hay for tok in BILLING_TOKENS)
-        if has_webhook and has_billing:
+        has_provider = any(tok in hay for tok in BILLING_PROVIDER_TOKENS)
+        has_payment_term = any(tok in hay for tok in BILLING_TERM_TOKENS)
+        is_negative = any(tok in hay for tok in NEGATIVE_BILLING_CONTEXTS)
+
+        if not has_webhook:
+            continue
+        # An explicit payment provider always qualifies.
+        if has_provider:
+            return True
+        # A payment/billing term qualifies only outside a negative context.
+        if has_payment_term and not is_negative:
             return True
     return False
+
+
+def _is_false_sense(slug: str, s: Signal) -> bool:
+    """Drop signals that match a concept only through a misleading keyword
+    (Evidence Precision v0.0.7). Real behavior signals are never dropped."""
+    hay = _signal_haystack(s)
+
+    if slug == "authentication":
+        # Never drop real auth behavior.
+        if s.kind in ("auth_dependency", "middleware", "token_usage", "route"):
+            return False
+        strong_auth = any(
+            t in hay for t in (
+                "login", "logout", "signin", "sign-in", "oauth", "bearer", "cookie",
+                "password", "access token", "jwt", "authenticate", "auth middleware",
+                "api key", "apikey", "session creation",
+            )
+        )
+        if strong_auth:
+            return False
+        # Weak/lexical false senses.
+        if "session_id" in hay:
+            return True
+        if "nextauth_url" in hay:
+            return True
+        if "author" in hay:  # authored / authorship
+            return True
+        if "capital" in hay or "titlecase" in hay or "title case" in hay:
+            return True
+        return False
+
+    if slug == "background_jobs":
+        if _is_employment(hay):
+            return True
+        return False
+
+    return False
+
+
+def _sense_filter(slug: str, signals: list[Signal]) -> list[Signal]:
+    return [s for s in signals if not _is_false_sense(slug, s)]
 
 
 def detect_concepts(signals: list[Signal]) -> list[ConceptCandidate]:
@@ -288,6 +374,9 @@ def detect_concepts(signals: list[Signal]) -> list[ConceptCandidate]:
 
         # Gate 1: drop concepts defined only by e2e specs or docs.
         meaningful = _meaningful_signals(matched)
+        # Gate 1b: drop word-sense pollution (session_id traces, NEXTAUTH_URL,
+        # employment job-title taxonomy, etc.) so it never becomes evidence.
+        meaningful = _sense_filter(slug, meaningful)
         if not meaningful:
             continue
 
@@ -303,12 +392,14 @@ def detect_concepts(signals: list[Signal]) -> list[ConceptCandidate]:
         if not _has_concept_anchor(slug, meaningful):
             continue
 
-        score = score_template_match(template, matched)
+        # Score and evidence use the cleaned (sense-filtered) signals only, so
+        # word-sense pollution never inflates confidence or drives headline evidence.
+        score = score_template_match(template, meaningful)
         if score < template["min_score"]:
             continue
 
         # Weak-only: presence evidence (deps/config) but no behavior anchor.
-        weak_only = not any(s.kind in ANCHOR_KINDS for s in matched)
+        weak_only = not any(s.kind in ANCHOR_KINDS for s in meaningful)
         if weak_only:
             score = min(score, 0.45)
 
@@ -318,7 +409,7 @@ def detect_concepts(signals: list[Signal]) -> list[ConceptCandidate]:
                 name=template["display_name"],
                 kind=template["kind"],
                 confidence=score,
-                signals=matched,
+                signals=meaningful,
                 weak_only=weak_only,
             )
         )

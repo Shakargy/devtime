@@ -1,0 +1,13 @@
+id: connector-webhook-not-billing
+type: false-positive
+language: typescript
+framework: nextjs
+# Evidence Precision (v0.0.7): a connector webhook is generic, not billing.
+expected:
+  concepts: []
+  allowed_claims: []
+  forbidden_claims:
+    - "Billing Webhooks is present"
+  required_uncertainty: []
+privacy:
+  contains_secrets: false

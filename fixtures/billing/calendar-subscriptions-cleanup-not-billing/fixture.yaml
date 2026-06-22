@@ -1,0 +1,15 @@
+id: calendar-subscriptions-cleanup-not-billing
+type: false-positive
+language: typescript
+framework: nextjs
+# Evidence Precision (v0.0.7): a cron calendar-subscriptions cleanup webhook
+# (Cal.com-style) is not Billing Webhooks.
+expected:
+  concepts: []
+  allowed_claims: []
+  forbidden_claims:
+    - "Billing Webhooks is present"
+    - "Billing Webhooks has active route handling"
+  required_uncertainty: []
+privacy:
+  contains_secrets: false

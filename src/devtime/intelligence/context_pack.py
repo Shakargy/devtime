@@ -77,31 +77,68 @@ def _do_not_change_warnings(ci: ConceptIntelligence) -> list[str]:
     return warnings
 
 
+def _impl_modules(ci: ConceptIntelligence) -> set[str]:
+    """Identifier-ish tokens from non-test evidence paths, for import matching."""
+    mods: set[str] = set()
+    for e in ci.evidence:
+        if e.path and e.signal.kind != "test":
+            stem = e.path.lower().replace("\\", "/")
+            for part in stem.replace(".py", "").replace(".ts", "").split("/"):
+                if len(part) > 3:
+                    mods.add(part)
+    return mods
+
+
 def _rank_tests(ci: ConceptIntelligence) -> list[TestRec]:
+    """Rank recommended tests with reasons that are *true and auditable*
+    (Evidence Precision v0.0.7): direct import > same directory > domain-term weak
+    candidate. Never claim "same module" on keyword overlap alone."""
     impl_dirs = {
         posixpath.dirname(e.path)
         for e in ci.evidence
         if e.path and e.signal.kind != "test"
     }
+    impl_modules = _impl_modules(ci)
     terms = DOMAIN_TERMS.get(ci.concept.name, ())
-    test_paths = list(
-        dict.fromkeys(
-            e.path for e in ci.evidence if e.signal.kind == "test" and e.path
-        )
-    )
+
     recs: list[TestRec] = []
-    for path in test_paths:
-        low = path.lower()
-        d = posixpath.dirname(path)
-        if d in impl_dirs:
-            recs.append(TestRec(path, f"Recommended because it is in the same module as {ci.concept.name} implementation.", 3))
+    seen: set[str] = set()
+    for e in ci.evidence:
+        if e.signal.kind != "test" or not e.path or e.path in seen:
+            continue
+        seen.add(e.path)
+        low = e.path.lower()
+        d = posixpath.dirname(e.path)
+        imports = [str(i).lower() for i in e.signal.metadata.get("imports", [])]
+
+        imported = any(
+            any(m in imp for m in impl_modules) for imp in imports
+        )
+        if imported:
+            recs.append(TestRec(
+                e.path,
+                "Recommended because it imports or tests the implementation it covers.",
+                4,
+            ))
+        elif d in impl_dirs:
+            recs.append(TestRec(
+                e.path,
+                "Recommended because it is in the same directory as the implementation.",
+                3,
+            ))
         elif any(t in low for t in terms):
             hit = next(t for t in terms if t in low)
-            recs.append(TestRec(path, f"Recommended because its path matches {ci.concept.name} behavior ('{hit}').", 2))
+            recs.append(TestRec(
+                e.path,
+                f"Weak candidate: path mentions '{hit}'; validate before use.",
+                1,
+            ))
         else:
-            recs.append(TestRec(path, "Weak candidate (keyword match only); validate before use.", 0))
+            recs.append(TestRec(
+                e.path, "Weak candidate (keyword match only); validate before use.", 0,
+            ))
+
     recs.sort(key=lambda r: r.rank, reverse=True)
-    # Drop weak candidates entirely once we have stronger ones; otherwise keep a few.
     strong = [r for r in recs if r.rank > 0]
     ranked = strong if strong else recs
     return ranked[:MAX_TESTS]

@@ -14,6 +14,21 @@ _TEST_NAME_RE = re.compile(
     r"""(?:it|test|describe)\(\s*['"]([^'"]+)['"]"""  # JS/TS
     r"""|def\s+(test_\w+)"""  # pytest
 )
+# Imports a test references — used to attach tests to the implementation they cover
+# (Evidence Precision v0.0.7): a truthful "imports the implementation" reason.
+_IMPORT_RE = re.compile(
+    r"""from\s+([\w.]+)\s+import|import\s+([\w.]+)"""  # python
+    r"""|from\s+['"]([^'"]+)['"]""",  # JS/TS
+)
+
+
+def _extract_imports(text: str) -> list[str]:
+    mods: list[str] = []
+    for m in _IMPORT_RE.finditer(text):
+        mod = m.group(1) or m.group(2) or m.group(3)
+        if mod:
+            mods.append(mod.lower())
+    return mods
 
 
 def _is_e2e(rel_path: str) -> bool:
@@ -29,6 +44,7 @@ def _is_e2e(rel_path: str) -> bool:
 def extract_test_signals(file: WalkedFile) -> list[Signal]:
     text = read_text(file)
     e2e = _is_e2e(file.rel_path)
+    imports = _extract_imports(text)
     signals: list[Signal] = []
     for match in _TEST_NAME_RE.finditer(text):
         name = match.group(1) or match.group(2)
@@ -39,7 +55,7 @@ def extract_test_signals(file: WalkedFile) -> list[Signal]:
                     name=name,
                     file=file,
                     confidence=0.4 if e2e else 0.8,
-                    metadata={"e2e": e2e},
+                    metadata={"e2e": e2e, "imports": imports},
                 )
             )
     return signals

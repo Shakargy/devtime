@@ -44,8 +44,8 @@ Anything outside these six is out of scope for V0. See [LIMITATIONS.md](LIMITATI
 - **Explains from evidence** — every claim links to the files/signals behind it.
 - **Surfaces uncertainty** — when evidence is missing (e.g. no decision record), it
   says so instead of guessing.
-- **Scores Understanding Debt** — a product signal for how well a concept can be
-  explained, with the causes shown.
+- **Scores understanding** — an **Understanding Score** (higher = better) with an
+  **Understanding Debt** label (low/medium/high) and the causes shown.
 - **Warns about a narrow set of risky changes** — `dtc risk --diff` reviews a git
   diff against local memory and flags *advisory* findings for the change classes it
   supports (e.g. JWT algorithm weakening, billing-webhook retry without dedupe tests).
@@ -92,21 +92,23 @@ dtc concepts
 dtc explain "Billing Webhooks"
 # ...make a change, then:
 dtc risk --diff
+# A decision only clears uncertainty when the code backs it up (corroborated):
 dtc decision add --concept billing_webhooks \
-  --title "Webhook retry and idempotency strategy" \
-  --body "Retry subscription updates up to 3x; dedupe by Stripe event id."
+  --title "Use Stripe for billing" \
+  --body "We use Stripe as the payment provider and verify webhook signatures."
 dtc explain "Billing Webhooks"
 ```
 
 The narrative:
 
 - **Before a decision:** Billing Webhooks has strong evidence (route, signature
-  verification, test) *and* uncertainty — no decision explains its retry or
-  duplicate-delivery behavior. Understanding Debt is `56/100`.
+  verification, test) *and* uncertainty — no decision explains its key choices.
+  Understanding Score is `56/100`.
 - **Risk review:** changing retry behavior without updating duplicate-delivery tests
   is flagged **high severity**.
-- **After adding a decision:** the missing reasoning is now in repository memory, the
-  uncertainty clears, and Understanding Debt improves to `72/100`.
+- **After a corroborated decision:** the reasoning is now in repository memory (and
+  matches the code), the uncertainty clears, and the Understanding Score improves.
+  A decision that the code does *not* back up stays flagged as uncorroborated.
 
 A full, copy-pasteable walkthrough is in **[DEMO_SCRIPT.md](DEMO_SCRIPT.md)**.
 
@@ -120,7 +122,7 @@ cd devtime
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
-pytest                              # 33 tests should pass
+pytest                              # the full test suite should pass (77+ tests)
 ```
 
 This installs the `dtc` command. See **[QUICKSTART.md](QUICKSTART.md)** for a
@@ -148,7 +150,7 @@ $ dtc explain "Billing Webhooks"
 Concept: Billing Webhooks
 
 Supported claims:
-  - Billing Webhooks is present in this repository.
+  - Billing Webhooks is present and supported by behavior evidence.
     type: concept  confidence: 0.86  evidence: src/billing/stripe-webhook.ts, tests/stripe-signature.test.ts
   - Billing Webhooks has active route handling.
     type: behavior  confidence: 0.82  evidence: src/billing/stripe-webhook.ts
@@ -176,7 +178,7 @@ blindness, a false Billing Webhooks detection on a generic webhook system, a DB
 migration mis-counted as Background Jobs evidence, and more). Each failure became a
 fixture so it cannot silently regress.
 
-- Tests grew from 13 → **33 passing**.
+- Tests grew from 13 to 77+ as each real failure became a fixture.
 - Scan time on a 355-file real repo dropped from ~27.3s to ~0.48s after ignored-
   directory pruning.
 

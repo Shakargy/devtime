@@ -44,6 +44,15 @@ public release gate.**
 - [x] Bracketed paths render literally
 - [x] External reviewer failures converted to fixtures or documented limitations
 
+## 3c. Evidence precision gates (v0.0.7)
+
+- [x] Billing Webhooks requires local payment-provider evidence (negative contexts suppressed)
+- [x] High-confidence Authentication requires direct auth evidence (word-sense pollution filtered)
+- [x] Context Pack reasons are truthful ("same directory" / "imports the implementation", no false "same module")
+- [x] Employment job-title/role taxonomy excluded from Background Jobs
+- [x] Direct `bg_tasks` tests attach to Background Jobs
+- [x] Package version is `0.0.7` (not `0.1.0`)
+
 ## 4. Privacy
 
 - [x] No network during scan

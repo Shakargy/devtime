@@ -6,10 +6,13 @@ local: AI off, cloud off, telemetry off, no code execution, no network.
 
 ## 1. Current version
 
-- Version `0.1.0` (package). Tag timeline: `v0.0.1-proof` → `v0.0.2-reality` →
+- Version `0.0.7` (private prerelease; `0.1.0` is reserved for the first public
+  release). Tag timeline: `v0.0.1-proof` → `v0.0.2-reality` →
   `v0.0.3-public-candidate` → `v0.0.4-private-review-candidate` →
-  `v0.0.5-private-review-ready` → `v0.0.6-trust-repair` (this one).
-- Tests: **67 passing** (`pytest`) — unit, integration, and 27 fixtures.
+  `v0.0.5-private-review-ready` → `v0.0.6-trust-repair` →
+  `v0.0.7-evidence-precision` (this one).
+- Tests: **passing** (`pytest`) — unit, integration, and fixture suites (count grows
+  each precision patch; see the suite for the current number).
 
 ### Trust Repair (v0.0.6) — from private reviewer feedback
 
@@ -41,6 +44,26 @@ not larger:
 
 > The Billing false-positive *class* is reduced and fixture-guarded, not declared
 > universally solved — heuristics can still err on unseen patterns.
+
+### Evidence Precision (v0.0.7) — after the v0.0.6 re-review
+
+Narrow precision patch (no new features); package version moved to `0.0.7` (still
+private; `0.1.0` reserved for public release):
+
+- **Billing Webhooks now needs a local payment provider.** Calendar subscriptions,
+  cron cleanup, connector/credential webhooks, and generic triggers are negative
+  contexts — they do not become Billing Webhooks without local Stripe/PayPal/payment
+  evidence. (Cal.com-style false positives.)
+- **High-confidence Authentication requires direct auth evidence.** `session_id`
+  traces, `NEXTAUTH_URL` permalink tests, and authorship/capitalization words are
+  filtered out as word-sense pollution before they can drive headline evidence.
+  (Langfuse-style.)
+- **Context Pack reasons are truthful.** "Same module" is now "same directory" and
+  only shown with real path locality; tests that import the implementation say so
+  ("imports or tests the implementation"); weak keyword candidates are labeled weak.
+- **Employment job-title/role taxonomy never becomes Background Jobs** (Twenty-style).
+- **Direct `bg_tasks` tests attach to Background Jobs** with an import-based reason,
+  instead of "no behavior-specific tests found" (Plane-style).
 
 ## 2. What works
 
