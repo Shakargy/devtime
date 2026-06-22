@@ -1,0 +1,15 @@
+id: calcom-real-paths-plus-stripe-is-billing
+type: concept
+language: typescript
+framework: nextjs
+# Positive control: the SAME Cal.com-style negative paths plus a real Stripe webhook.
+# Billing Webhooks must be detected, anchored ONLY on the Stripe file.
+expected:
+  concepts:
+    - Billing Webhooks
+  allowed_claims:
+    - "Billing Webhooks"
+  forbidden_claims: []
+  required_uncertainty: []
+privacy:
+  contains_secrets: false

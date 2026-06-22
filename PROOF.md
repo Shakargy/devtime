@@ -65,6 +65,22 @@ private; `0.1.0` reserved for public release):
 - **Direct `bg_tasks` tests attach to Background Jobs** with an import-based reason,
   instead of "no behavior-specific tests found" (Plane-style).
 
+After a Codex narrow re-review found the first pass overfit to synthetic fixtures,
+v0.0.7 was hardened with **real-path regression fixtures** and stricter evidence
+sense-filters:
+
+- Billing evidence itself is sense-filtered: calendar/credential/connector/cron/
+  generic-trigger webhook signals are dropped from Billing Webhooks unless a local
+  payment provider (Stripe/PayPal) is present — verified with the exact Cal.com paths
+  (`api/cron/calendar-subscriptions`, `api/cron/webhookTriggers`,
+  `api/webhook/app-credential`, `api/webhooks/calendar-subscription/[provider]`).
+- Authentication drops weak/unrelated signals (e.g. an `s3SigningDiagnostics.test.ts`)
+  and routes that match only via a `[token]` path segment on a non-auth domain (e.g.
+  `app-upload/[token]`), so headline evidence is direct auth only.
+- Context Pack recommends a test only when the relation is provable (import or true
+  same-directory) and **omits** it otherwise — no invented "same module"/"same
+  directory" reasons across packages.
+
 ## 2. What works
 
 CLI: `dtc init`, `dtc scan`, `dtc concepts`, `dtc explain`, `dtc evidence`,

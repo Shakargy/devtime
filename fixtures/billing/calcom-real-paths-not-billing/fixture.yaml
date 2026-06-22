@@ -1,0 +1,16 @@
+id: calcom-real-paths-not-billing
+type: false-positive
+language: typescript
+framework: nextjs
+# Codex blocker 1 (Cal.com real paths): calendar/credential/generic-trigger webhooks
+# with NO local payment provider must not create Billing Webhooks.
+expected:
+  concepts: []
+  allowed_claims: []
+  forbidden_claims:
+    - "Billing Webhooks is present"
+    - "Billing Webhooks has active route handling"
+    - "Possible Billing Webhooks"
+  required_uncertainty: []
+privacy:
+  contains_secrets: false

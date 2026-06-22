@@ -109,3 +109,83 @@ def test_cron_calendar_cleanup_is_not_billing():
     repo = FIXTURES_DIR / "billing" / "calendar-subscriptions-cleanup-not-billing" / "repo"
     intelligence = run_devtime_scan(repo)
     assert not any(ci.concept.name == "Billing Webhooks" for ci in intelligence)
+
+
+# --- Codex blocker 1: Cal.com real paths -------------------------------------
+
+def test_calcom_real_paths_are_not_billing():
+    repo = FIXTURES_DIR / "billing" / "calcom-real-paths-not-billing" / "repo"
+    intelligence = run_devtime_scan(repo)
+    assert not any(ci.concept.name == "Billing Webhooks" for ci in intelligence)
+
+
+def test_calcom_paths_plus_stripe_is_billing_anchored_on_stripe_only():
+    repo = FIXTURES_DIR / "billing" / "calcom-real-paths-plus-stripe-is-billing" / "repo"
+    intelligence = run_devtime_scan(repo)
+    billing = next(ci for ci in intelligence if ci.concept.name == "Billing Webhooks")
+    paths = " ".join(e.path or "" for e in billing.evidence)
+    assert "stripe" in paths
+    # The calendar/credential negative-context files must NOT be billing evidence.
+    assert "calendar-subscriptions" not in paths
+    assert "app-credential" not in paths
+
+
+# --- Codex blocker 2: Langfuse S3 signing diagnostics not auth headline ------
+
+def test_s3_signing_diagnostics_test_is_not_auth_headline():
+    signals = [
+        Signal(kind="route", name="GET /api/auth/[...nextauth]",
+               file_rel_path="src/app/api/auth/[...nextauth]/route.ts", confidence=0.8,
+               metadata={"path": "/api/auth/[...nextauth]"}),
+        Signal(kind="test", name="signs s3 url for upload diagnostics",
+               file_rel_path="packages/shared/src/server/services/s3SigningDiagnostics.test.ts",
+               confidence=0.8, metadata={"e2e": False, "imports": []}),
+    ]
+    cands = detect_concepts(signals)
+    auth = next(c for c in cands if c.name == "Authentication")
+    paths = " ".join(s.file_rel_path for s in auth.signals)
+    assert "s3SigningDiagnostics" not in paths
+    ci = build_concept_intelligence(auth, build_evidence(auth))
+    concept_claim = next(c for c in ci.claims if c.type == "concept")
+    cited = " ".join(e.path or "" for e in concept_claim.evidence)
+    assert "s3SigningDiagnostics" not in cited
+    assert "auth" in cited.lower()
+
+
+# --- Codex blocker 3: Context Pack reasons must be truthful ------------------
+
+def test_cross_package_test_does_not_get_same_directory_reason():
+    from devtime.intelligence.concepts import ConceptCandidate
+    sig = [
+        Signal(kind="route", name="POST /api/stripe/webhook",
+               file_rel_path="apps/web/src/billing/webhook.ts", confidence=0.8),
+        Signal(kind="webhook_signature_verification", name="stripe",
+               file_rel_path="apps/web/src/billing/webhook.ts", confidence=0.9),
+        # Unrelated test in a different package; no import of the implementation.
+        Signal(kind="test", name="unrelated billing-ish test",
+               file_rel_path="apps/api/tests/misc/other.test.ts", confidence=0.8,
+               metadata={"e2e": False, "imports": ["lodash"]}),
+    ]
+    cand = ConceptCandidate(slug="billing_webhooks", name="Billing Webhooks",
+                            kind="system_concept", confidence=0.85, signals=sig)
+    ci = build_concept_intelligence(cand, build_evidence(cand))
+    pack = generate_context_pack(ci, mode="risk")
+    for t in pack.tests_to_run:
+        if "other.test.ts" in t.path:
+            assert "same directory" not in t.reason
+    # The unrelated cross-package test should simply be omitted.
+    assert not any("other.test.ts" in t.path for t in pack.tests_to_run)
+
+
+# --- Codex blocker 4: Plane bg_tasks reason is import-based, not same-dir -----
+
+def test_plane_bg_tasks_reason_is_import_not_same_directory():
+    repo = FIXTURES_DIR / "jobs" / "bg-tasks-test-attaches-to-background-jobs" / "repo"
+    intelligence = run_devtime_scan(repo)
+    bg = next(ci for ci in intelligence if ci.concept.name == "Background Jobs")
+    pack = generate_context_pack(bg, mode="risk")
+    bg_recs = [t for t in pack.tests_to_run if "bg_tasks" in t.path]
+    assert bg_recs, "bg_tasks test should be recommended"
+    for t in bg_recs:
+        assert "imports or tests the implementation" in t.reason
+        assert "same directory" not in t.reason

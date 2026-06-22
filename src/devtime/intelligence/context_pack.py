@@ -77,29 +77,41 @@ def _do_not_change_warnings(ci: ConceptIntelligence) -> list[str]:
     return warnings
 
 
+# Generic path/monorepo tokens that are not specific enough to prove an import
+# relation (avoids "imports" matching on "src", "plane", "packages", etc).
+_COMMON_PATH_TOKENS = {
+    "app", "apps", "api", "src", "lib", "libs", "server", "servers", "service",
+    "services", "test", "tests", "spec", "specs", "package", "packages", "shared",
+    "web", "core", "common", "utils", "util", "index", "main", "models", "model",
+    "types", "type", "components", "component", "pages", "routes", "route",
+    "handlers", "handler", "dist", "build", "internal", "backend", "frontend",
+    "plane", "modules", "module", "config", "configs",
+}
+
+
 def _impl_modules(ci: ConceptIntelligence) -> set[str]:
-    """Identifier-ish tokens from non-test evidence paths, for import matching."""
+    """Specific identifier tokens from non-test evidence paths, for import matching.
+    Common monorepo/path tokens are excluded so an import match is meaningful."""
     mods: set[str] = set()
     for e in ci.evidence:
         if e.path and e.signal.kind != "test":
-            stem = e.path.lower().replace("\\", "/")
-            for part in stem.replace(".py", "").replace(".ts", "").split("/"):
-                if len(part) > 3:
+            stem = e.path.lower().replace("\\", "/").replace(".py", "").replace(".ts", "")
+            for part in stem.split("/"):
+                if len(part) >= 4 and part not in _COMMON_PATH_TOKENS:
                     mods.add(part)
     return mods
 
 
 def _rank_tests(ci: ConceptIntelligence) -> list[TestRec]:
-    """Rank recommended tests with reasons that are *true and auditable*
-    (Evidence Precision v0.0.7): direct import > same directory > domain-term weak
-    candidate. Never claim "same module" on keyword overlap alone."""
+    """Recommend a test ONLY when the relation is provable, with a true reason
+    (Codex blockers 3 & 4): an import relation, or a genuine same-directory relation.
+    Otherwise omit it — a missing recommendation beats a false reason."""
     impl_dirs = {
         posixpath.dirname(e.path)
         for e in ci.evidence
         if e.path and e.signal.kind != "test"
     }
     impl_modules = _impl_modules(ci)
-    terms = DOMAIN_TERMS.get(ci.concept.name, ())
 
     recs: list[TestRec] = []
     seen: set[str] = set()
@@ -107,41 +119,26 @@ def _rank_tests(ci: ConceptIntelligence) -> list[TestRec]:
         if e.signal.kind != "test" or not e.path or e.path in seen:
             continue
         seen.add(e.path)
-        low = e.path.lower()
         d = posixpath.dirname(e.path)
         imports = [str(i).lower() for i in e.signal.metadata.get("imports", [])]
 
-        imported = any(
-            any(m in imp for m in impl_modules) for imp in imports
-        )
+        imported = any(any(m in imp for m in impl_modules) for imp in imports)
         if imported:
             recs.append(TestRec(
                 e.path,
-                "Recommended because it imports or tests the implementation it covers.",
+                "Recommended because it imports or tests the implementation.",
                 4,
             ))
-        elif d in impl_dirs:
+        elif impl_dirs and d in impl_dirs:
             recs.append(TestRec(
                 e.path,
                 "Recommended because it is in the same directory as the implementation.",
                 3,
             ))
-        elif any(t in low for t in terms):
-            hit = next(t for t in terms if t in low)
-            recs.append(TestRec(
-                e.path,
-                f"Weak candidate: path mentions '{hit}'; validate before use.",
-                1,
-            ))
-        else:
-            recs.append(TestRec(
-                e.path, "Weak candidate (keyword match only); validate before use.", 0,
-            ))
+        # No provable relation -> omit (do not invent a reason).
 
     recs.sort(key=lambda r: r.rank, reverse=True)
-    strong = [r for r in recs if r.rank > 0]
-    ranked = strong if strong else recs
-    return ranked[:MAX_TESTS]
+    return recs[:MAX_TESTS]
 
 
 def generate_context_pack(ci: ConceptIntelligence, mode: str = "risk") -> ContextPack:

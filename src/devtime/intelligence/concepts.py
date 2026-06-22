@@ -102,6 +102,18 @@ NEGATIVE_BILLING_CONTEXTS = (
     "recall", "resend", "ses", "oauth", "cleanup",
 )
 
+# Direct authentication terms. A weak signal (test/config/dep) only counts as
+# Authentication evidence if it contains one of these (Evidence Precision v0.0.7).
+# Deliberately excludes bare "auth"/"token"/"session"/"signing" and "nextauth_url"
+# (the real NextAuth handler is a route, not a URL constant in a permalink test).
+STRONG_AUTH_TERMS = (
+    "login", "log in", "logout", "log out", "signin", "sign in", "sign-in",
+    "register", "oauth", "bearer", "cookie", "password", "access token",
+    "access_token", "accesstoken", "jwt", "authenticate", "authentication",
+    "auth middleware", "api key", "api_key", "apikey", "session creation",
+    "session verification", "csrf",
+)
+
 # Employment / person taxonomy that must never become Background Jobs.
 EMPLOYMENT_NEG_TOKENS = (
     "job title", "job-title", "jobtitle", "job_title", "job role", "job-role",
@@ -330,34 +342,61 @@ def _is_false_sense(slug: str, s: Signal) -> bool:
     hay = _signal_haystack(s)
 
     if slug == "authentication":
-        # Never drop real auth behavior.
-        if s.kind in ("auth_dependency", "middleware", "token_usage", "route"):
+        # Real auth behavior kinds are headline evidence and are never dropped.
+        if s.kind in ("auth_dependency", "middleware", "token_usage"):
             return False
-        strong_auth = any(
-            t in hay for t in (
-                "login", "logout", "signin", "sign-in", "oauth", "bearer", "cookie",
-                "password", "access token", "jwt", "authenticate", "auth middleware",
-                "api key", "apikey", "session creation",
-            )
-        )
-        if strong_auth:
-            return False
-        # Weak/lexical false senses.
-        if "session_id" in hay:
-            return True
-        if "nextauth_url" in hay:
-            return True
-        if "author" in hay:  # authored / authorship
-            return True
-        if "capital" in hay or "titlecase" in hay or "title case" in hay:
-            return True
-        return False
+        # A route is auth evidence only if it is genuinely an auth route — a `[token]`
+        # path segment on an upload/file route is not authentication.
+        if s.kind == "route":
+            return not _is_auth_route(hay)
+        # Weak kinds (test/config/dependency/doc) must EARN inclusion with a direct
+        # auth term. A test like s3SigningDiagnostics.test.ts has none -> dropped,
+        # so it cannot become headline Authentication evidence (Codex blocker 2).
+        return not any(t in hay for t in STRONG_AUTH_TERMS)
 
     if slug == "background_jobs":
-        if _is_employment(hay):
+        return _is_employment(hay)
+
+    if slug == "billing_webhooks":
+        # A payment-provider signature handler is always real billing evidence.
+        if s.kind == "webhook_signature_verification":
+            return False
+        has_provider = any(p in hay for p in BILLING_PROVIDER_TOKENS)
+        if has_provider:
+            return False
+        has_payment = any(t in hay for t in BILLING_TERM_TOKENS)
+        is_negative = any(n in hay for n in NEGATIVE_BILLING_CONTEXTS)
+        # Calendar/credential/connector/cron/generic-trigger contexts without a local
+        # payment provider are NOT billing evidence (Codex blocker 1 / Cal.com).
+        if is_negative:
+            return True
+        if "webhook" in hay and not has_payment:
+            return True
+        if "subscription" in hay and not has_payment:
             return True
         return False
 
+    return False
+
+
+_AUTH_ROUTE_POSITIVE = (
+    "/auth", "login", "logout", "signin", "sign-in", "signup", "sign-up", "oauth",
+    "register", "password", "nextauth", "/session", "forgot", "reset-password",
+    "2fa", "mfa", "/sso", "saml", "verify-email", "magic-link",
+)
+_AUTH_ROUTE_NEGATIVE_DOMAIN = (
+    "upload", "album", "file", "avatar", "export", "download", "calendar",
+    "billing", "webhook", "invoice", "image", "media", "asset",
+)
+
+
+def _is_auth_route(hay: str) -> bool:
+    if any(t in hay for t in _AUTH_ROUTE_POSITIVE):
+        return True
+    # A bare token/jwt path segment counts only outside a clearly non-auth domain
+    # (e.g. /app-upload/[token] is an upload route, not authentication).
+    if "token" in hay or "jwt" in hay:
+        return not any(d in hay for d in _AUTH_ROUTE_NEGATIVE_DOMAIN)
     return False
 
 
