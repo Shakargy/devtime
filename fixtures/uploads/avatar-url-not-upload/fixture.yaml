@@ -1,0 +1,14 @@
+id: avatar-url-not-upload
+type: false-positive
+language: typescript
+framework: nextjs
+# Trust Repair (v0.0.6): an avatar URL endpoint is not file-upload behavior.
+expected:
+  concepts: []
+  allowed_claims: []
+  forbidden_claims:
+    - "File Uploads is present"
+    - "File Uploads has active route handling"
+  required_uncertainty: []
+privacy:
+  contains_secrets: false

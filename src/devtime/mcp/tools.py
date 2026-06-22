@@ -75,7 +75,10 @@ def get_context_pack(concept: str, mode: str = "risk") -> dict:
             "decisions": pack.decisions,
             "uncertainty": pack.uncertainty,
             "do_not_change_without_review": pack.do_not_change,
-            "tests_to_run": pack.tests_to_run,
+            "limited": pack.limited,
+            "tests_to_run": [
+                {"path": t.path, "reason": t.reason} for t in pack.tests_to_run
+            ],
             "agent_guidance": pack.agent_guidance,
             "privacy": {
                 "contains_source_excerpts": False,

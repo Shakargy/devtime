@@ -39,6 +39,7 @@ def walk_repository(
     max_size_bytes: int,
     *,
     follow_symlinks: bool = False,
+    stats: dict | None = None,
 ):
     root = Path(root)
     for dirpath, dirnames, filenames in os.walk(root, followlinks=follow_symlinks):
@@ -48,10 +49,14 @@ def walk_repository(
         kept: list[str] = []
         for d in sorted(dirnames):
             if ignore_mod.is_pruned_dirname(d):
+                if stats is not None:
+                    stats["pruned_dirs"] = stats.get("pruned_dirs", 0) + 1
                 continue
             child_rel = d if rel_dir in ("", ".") else f"{rel_dir}/{d}"
             child_rel = _normalize(child_rel)
             if ignore_matcher.match_dir(child_rel):
+                if stats is not None:
+                    stats["pruned_dirs"] = stats.get("pruned_dirs", 0) + 1
                 continue
             child_path = Path(dirpath) / d
             if child_path.is_symlink() and not follow_symlinks:
@@ -62,18 +67,24 @@ def walk_repository(
         for fn in sorted(filenames):
             rel = _normalize(fn if rel_dir in ("", ".") else f"{rel_dir}/{fn}")
             if ignore_matcher.match(rel):
+                if stats is not None:
+                    stats["skipped_files"] = stats.get("skipped_files", 0) + 1
                 continue
             path = Path(dirpath) / fn
             if path.is_symlink() and not follow_symlinks:
                 continue
             extension = path.suffix.lower()
             if ignore_mod.is_binary_extension(extension):
+                if stats is not None:
+                    stats["skipped_files"] = stats.get("skipped_files", 0) + 1
                 continue
             try:
                 size = path.stat().st_size
             except OSError:
                 continue
             if size > max_size_bytes:
+                if stats is not None:
+                    stats["skipped_files"] = stats.get("skipped_files", 0) + 1
                 continue
             yield WalkedFile(
                 path=path,

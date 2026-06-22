@@ -27,6 +27,23 @@ public release gate.**
 - [x] Advisory GitHub Action exits 0 (`.github/workflows/devtime-risk-review.yml`)
 - [x] No blocking PR behavior yet (risk review is advisory)
 
+## 3b. Trust repair gates (v0.0.6)
+
+- [x] Risk review states verified (`review_failed` / `no_findings` / `unsupported_change_class` / `finding`)
+- [x] Git diff failure is `review_failed`, not `no_findings`
+- [x] JWT algorithm weakening (→ `none`) flagged high
+- [x] Billing Webhooks false positives fixture-guarded (calendar/credential/generic/dep-only)
+- [x] Word-sense gates verified (session_id, NEXTAUTH_URL, invitation JWT, job title, avatar URL, model download)
+- [x] Low-confidence concepts do not claim "is present"
+- [x] Decisions must be corroborated to clear uncertainty
+- [x] Context pack noise checked (limited for weak concepts; tests capped + reasoned)
+- [x] Understanding Score/Debt wording fixed; no hidden freshness points
+- [x] Closed ontology disclosed (six families)
+- [x] Framework coverage warnings (Django / NestJS)
+- [x] MCP `start` does not pretend to start a server
+- [x] Bracketed paths render literally
+- [x] External reviewer failures converted to fixtures or documented limitations
+
 ## 4. Privacy
 
 - [x] No network during scan

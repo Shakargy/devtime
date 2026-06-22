@@ -7,7 +7,8 @@ from devtime.scanner.extractors.base import Signal
 def test_usage_is_not_decision():
     """A dependency/usage signal must never become a decision claim."""
     signals = [
-        Signal(kind="token_usage", name="jwt", file_rel_path="src/auth/tokens.ts", confidence=0.8),
+        Signal(kind="token_usage", name="jwt", file_rel_path="src/auth/tokens.ts",
+               confidence=0.8, metadata={"purpose": "access"}),
         Signal(kind="route", name="POST /auth/login", file_rel_path="src/auth/login.ts", confidence=0.8),
     ]
     cand = ConceptCandidate(

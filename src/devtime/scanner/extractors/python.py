@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import re
 
-from devtime.scanner.extractors.base import Signal, read_text, signal
+from devtime.scanner.extractors.base import (
+    Signal,
+    classify_jwt_purpose,
+    read_text,
+    signal,
+)
 from devtime.scanner.file_walker import WalkedFile
 
 _IMPORT_RE = re.compile(r"""^\s*(?:from\s+(\w[\w.]*)\s+import|import\s+(\w[\w.]*))""", re.M)
@@ -46,7 +51,22 @@ def extract_python_signals(file: WalkedFile) -> list[Signal]:
         )
 
     if re.search(r"\bjwt\.(encode|decode)\b|\bPyJWT\b", text):
-        signals.append(signal("token_usage", name="jwt", file=file, confidence=0.8))
+        purpose = classify_jwt_purpose(text, file.rel_path)
+        signals.append(
+            signal(
+                "token_usage",
+                name="jwt",
+                file=file,
+                confidence=0.8,
+                metadata={"purpose": purpose},
+            )
+        )
+
+    # File uploads: FastAPI UploadFile / multipart / werkzeug request.files.
+    if re.search(r"\bUploadFile\b|=\s*File\(|multipart/form-data|request\.files", text):
+        signals.append(
+            signal("upload_endpoint", name="upload", file=file, confidence=0.8)
+        )
 
     if "stripe.Webhook.construct_event" in text:
         signals.append(

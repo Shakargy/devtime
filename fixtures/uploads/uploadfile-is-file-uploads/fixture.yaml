@@ -1,0 +1,14 @@
+id: uploadfile-is-file-uploads
+type: concept
+language: python
+framework: fastapi
+# Trust Repair (v0.0.6): a FastAPI UploadFile route IS File Uploads (positive control).
+expected:
+  concepts:
+    - File Uploads
+  allowed_claims:
+    - "File Uploads"
+  forbidden_claims: []
+  required_uncertainty: []
+privacy:
+  contains_secrets: false

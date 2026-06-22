@@ -14,24 +14,20 @@ from devtime.mcp import schemas
 
 
 def describe_server() -> str:
+    """Honest preview output (Trust Repair v0.0.6): no server is started, and no
+    bind address is shown, because the MCP transport is not implemented in V0."""
     lines = [
-        "DevTime MCP (local, read-only by default)",
-        "  bind: 127.0.0.1",
-        "  read_source: false",
-        "  write tools: disabled",
+        "MCP transport is not implemented in V0.",
+        "No server was started.",
+        "This command is a preview of planned read-only MCP tools.",
         "",
-        "Read tools:",
+        "Planned read tools:",
     ]
     lines += [f"  - {t}" for t in schemas.TOOLS["read"]]
-    lines += ["Context tools:"]
+    lines += ["Planned context tools:"]
     lines += [f"  - {t}" for t in schemas.TOOLS["context"]]
-    lines += ["Review tools:"]
+    lines += ["Planned review tools:"]
     lines += [f"  - {t}" for t in schemas.TOOLS["review"]]
-    lines += [
-        "",
-        "Note: transport binding is wired in a later milestone; "
-        "tool logic is available via devtime.mcp.tools.",
-    ]
     return "\n".join(lines)
 
 

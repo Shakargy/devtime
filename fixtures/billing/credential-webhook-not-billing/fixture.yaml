@@ -1,0 +1,13 @@
+id: credential-webhook-not-billing
+type: false-positive
+language: typescript
+framework: nextjs
+# Trust Repair (v0.0.6): an app credential / connector webhook is not Billing Webhooks.
+expected:
+  concepts: []
+  allowed_claims: []
+  forbidden_claims:
+    - "Billing Webhooks is present"
+  required_uncertainty: []
+privacy:
+  contains_secrets: false

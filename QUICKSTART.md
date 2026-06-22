@@ -69,8 +69,13 @@ Scan complete. 15 files, 38 signals, 5 concepts in 0.1s.
 ```
 
 `dtc explain "Billing Webhooks"` shows supported claims with evidence, an
-**Uncertainty** section ("No decision was found explaining key choices…"), and an
-**Understanding Debt** score of `56 / 100`.
+**Uncertainty** section ("No decision was found explaining key choices…"), an
+**Understanding Score** of `56 / 100` (higher = better), and an **Understanding Debt**
+label (`medium`).
+
+V0 detects six supported concept families (closed ontology): Authentication, Billing
+Webhooks, Background Jobs, Data Export, Admin Permissions, File Uploads. It does not
+discover arbitrary domain concepts yet — see [LIMITATIONS.md](LIMITATIONS.md).
 
 `dtc explain "Authentication"` scores higher, because the demo includes a decision
 record (`docs/decisions/0001-use-jwt.md`).
@@ -85,10 +90,25 @@ record (`docs/decisions/0001-use-jwt.md`).
 - **`risk --diff` shows no findings** — risk review needs a git diff in the current
   directory. See DEMO_SCRIPT.md for the prepared demo change.
 
-## 8. Reset local memory
+## 8. Recording a decision (PowerShell-safe)
+
+`dtc decision add` takes inline options — pass `--title` and `--body` on one line
+(works in bash, PowerShell, and cmd):
+
+```
+dtc decision add --concept billing_webhooks --title "Use Stripe for billing" --body "We use Stripe as the payment provider and verify webhook signatures."
+```
+
+A decision only reduces uncertainty / raises the Understanding Score when it is
+**corroborated** by the scanned implementation. A decision describing behavior the
+code does not show (e.g. retry) stays flagged as uncorroborated.
+
+## 9. Reset local memory
 
 DevTime's memory lives in `.devtime/` and is safe to delete. Your source code is
-never modified.
+never modified. Note: `dtc init` also writes a starter `.devtimeignore` in the repo
+root; `dtc reset` removes `.devtime/` but leaves `.devtimeignore` in place (delete it
+manually if you don't want it).
 
 ```bash
 dtc reset            # deletes .devtime/ after confirmation

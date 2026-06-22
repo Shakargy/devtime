@@ -1,0 +1,15 @@
+id: nextauth-url-test-not-auth
+type: false-positive
+language: typescript
+framework: none
+# Trust Repair (v0.0.6): NEXTAUTH_URL referenced in a permalink test is weak config,
+# not authentication behavior.
+expected:
+  concepts: []
+  allowed_claims: []
+  forbidden_claims:
+    - "Authentication is present"
+    - "Authentication has active route handling"
+  required_uncertainty: []
+privacy:
+  contains_secrets: false

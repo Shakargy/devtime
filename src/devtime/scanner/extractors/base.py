@@ -52,3 +52,32 @@ def read_text(file: WalkedFile) -> str:
         return file.path.read_text(encoding="utf-8", errors="ignore")
     except OSError:
         return ""
+
+
+def classify_jwt_purpose(text: str, rel_path: str) -> str:
+    """Classify what a JWT is used for (Trust Repair v0.0.6).
+
+    Returns "access", "invitation", or "unclear". Invitation/verification tokens
+    are not access tokens and must not be claimed as such.
+    """
+    hay = (text + " " + rel_path).lower()
+    access_signals = (
+        "access token", "accesstoken", "access_token", "bearer", "authorization",
+        "login", "signin", "sign-in", "refresh token", "refresh_token",
+        "req.cookies", "set-cookie", "auth middleware", "current_user",
+        "get_current_user",
+    )
+    invitation_signals = (
+        "invite", "invitation", "verify email", "verify-email", "email_verification",
+        "password reset", "password-reset", "reset_token", "magic link", "magic-link",
+        "one-time", "onetime",
+    )
+    has_access = any(s in hay for s in access_signals)
+    has_invite = any(s in hay for s in invitation_signals)
+    if has_access and not has_invite:
+        return "access"
+    if has_invite and not has_access:
+        return "invitation"
+    if has_access and has_invite:
+        return "access"  # an access path that also issues invites still does access auth
+    return "unclear"

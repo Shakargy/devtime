@@ -1,0 +1,15 @@
+id: session-id-not-auth
+type: false-positive
+language: typescript
+framework: none
+# Trust Repair (v0.0.6): a session_id field in trace/telemetry data is not
+# Authentication evidence.
+expected:
+  concepts: []
+  allowed_claims: []
+  forbidden_claims:
+    - "Authentication is present"
+    - "Possible Authentication signals"
+  required_uncertainty: []
+privacy:
+  contains_secrets: false

@@ -1,0 +1,14 @@
+id: job-title-not-background-jobs
+type: false-positive
+language: typescript
+framework: nextjs
+# Trust Repair (v0.0.6): employment "job title" taxonomy is not Background Jobs.
+expected:
+  concepts: []
+  allowed_claims: []
+  forbidden_claims:
+    - "Background Jobs is present"
+    - "Background Jobs has active route handling"
+  required_uncertainty: []
+privacy:
+  contains_secrets: false

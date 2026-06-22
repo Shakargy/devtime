@@ -7,6 +7,13 @@ do. Read this before trusting any single output.
 
 - DevTime is a **heuristic scanner**, not a full semantic compiler or type-aware
   analyzer. It reasons from patterns in code, paths, tests, configs, and docs.
+- **Closed concept ontology.** V0 only detects six supported concept families
+  (Authentication, Billing Webhooks, Background Jobs, Data Export, Admin Permissions,
+  File Uploads). It does **not** discover arbitrary domain concepts. Anything else is
+  out of scope.
+- **Word-sense detection is heuristic.** Gates reduce false positives (a job *title*
+  is not a Background Job; an avatar *URL* is not a File Upload; a calendar
+  *subscription* is not a Billing Webhook), but they are pattern-based and imperfect.
 - It builds **local repository memory** only. There is no cloud, no team sync, and
   no shared state between machines.
 - There is **no UI**. DevTime is a command-line tool.
@@ -38,9 +45,13 @@ do. Read this before trusting any single output.
 - It reviews a git diff against local memory using heuristics; it does not prove a
   change is broken, and it can both miss real risks and surface ones that turn out to
   be fine.
-- Risk findings are keyed to known patterns (e.g. retry/idempotency/duplicate-delivery
-  on billing webhooks). Coverage is narrow by design — *one precise warning beats ten
-  vague ones*.
+- Risk findings are keyed to a **narrow** set of known change classes (e.g. JWT
+  algorithm weakening; retry/idempotency on billing webhooks). Most changes to a known
+  concept return **`unsupported_change_class`** — meaning "a tracked file changed but
+  V0 has no rule for this change; review it manually" — not a clean bill of health.
+- The result states are explicit: `review_failed`, `no_findings`,
+  `unsupported_change_class`, `finding`. A git failure is `review_failed`, never
+  `no_findings`.
 
 ## 5. Privacy and security boundaries
 
@@ -60,8 +71,11 @@ do. Read this before trusting any single output.
 ## 7. Performance limitations
 
 - Scans prune ignored directories before traversal, which makes them fast on typical
-  repos (sub-second on the demo; ~0.5s on a 355-file real repo). Very large
-  repositories have not been extensively profiled.
+  repos (sub-second on the demo; ~0.5s on a 355-file real repo).
+- **Very large repositories can take much longer.** Private reviewers saw scans of
+  tens of seconds to several minutes on large monorepos (tens of thousands of files).
+  `dtc scan` prints a local progress heartbeat and a boundary report (files scanned,
+  pruned directories, skipped files, duration); this is local only — no telemetry.
 - Detection is single-pass and in-process; there is no incremental/cached scan yet.
 
 ## 8. What is intentionally not built yet

@@ -23,7 +23,7 @@ def test_missing_decision_lowers_score_and_adds_uncertainty():
     cand = _candidate(signals)
     ci = build_concept_intelligence(cand, build_evidence(cand))
     us = compute_understanding(ci)
-    assert "missing decision evidence" in us.causes
+    assert any("decision evidence" in c for c in us.causes)
     assert any("decision" in u.text.lower() for u in ci.uncertainties)
     assert 0 <= us.score <= 100
 

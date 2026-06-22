@@ -66,12 +66,14 @@ Output includes:
 Uncertainty:
   - No decision was found explaining key choices for Billing Webhooks.
 
-Understanding Debt: 56 / 100 (medium)
+Understanding Score: 56 / 100
+Understanding Debt: medium
 ```
 
 Narration: *"Billing Webhooks has strong behavior evidence — a route and Stripe
 signature verification — but DevTime surfaces uncertainty: no decision explains its
-retry or duplicate-delivery behavior. Uncertainty is a feature, not a bug."*
+key choices. Understanding Score is higher = better; Debt is a label. Uncertainty is
+a feature, not a bug."*
 
 ## 5. A risky change is flagged (advisory)
 
@@ -127,7 +129,10 @@ look."*
 git checkout -- src/billing/stripe-webhook.ts
 ```
 
-## 6. Close the loop — record the decision
+## 6. Close the loop — but only a *corroborated* decision counts
+
+First, the unsafe move DevTime refuses to reward. We reverted the retry code, so if we
+record a retry decision anyway, DevTime should NOT be fooled:
 
 ```bash
 dtc decision add --concept billing_webhooks \
@@ -137,17 +142,36 @@ dtc decision add --concept billing_webhooks \
 dtc explain "Billing Webhooks"
 ```
 
-Now the uncertainty is gone and Understanding Debt improves:
+The uncertainty stays, with a corroboration note:
 
 ```
 Uncertainty:
-  (none)
-
-Understanding Debt: 72 / 100 (medium)
+  - Decision 'Webhook retry and idempotency strategy' exists, but retry, deduplication
+    is not corroborated by scanned implementation evidence.
 ```
 
-Narration: *"We recorded the missing reasoning. Repository memory now contains the
-decision, the uncertainty clears, and Understanding Debt improves from 56 to 72."*
+Narration: *"DevTime will not raise the score for a decision the code does not back
+up. A decision is evidence, not automatic truth."*
+
+Now contrast a decision that **matches** the implementation. On a fresh scan
+(`dtc reset && dtc init && dtc scan`), record a corroborated one:
+
+```bash
+dtc decision add --concept billing_webhooks \
+  --title "Use Stripe for billing" \
+  --body "We use Stripe as the payment provider and verify webhook signatures."
+
+dtc explain "Billing Webhooks"
+```
+
+This decision matches the scanned Stripe signature-verification evidence, so the
+missing-decision uncertainty clears and the Understanding Score improves.
+
+Narration: *"A corroborated decision adds real understanding. DevTime distinguishes a
+decision that matches the code from one that merely claims behavior."*
+
+> PowerShell note: pass each option inline (as above) rather than a multi-line body.
+> `dtc decision add --concept billing_webhooks --title "..." --body "..."`
 
 ## Close
 

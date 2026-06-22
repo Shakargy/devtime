@@ -1,0 +1,15 @@
+id: invitation-jwt-not-access-token
+type: word-sense
+language: typescript
+framework: express
+# Trust Repair (v0.0.6): a JWT used for invitations must not be claimed as an access token.
+expected:
+  concepts:
+    - Authentication
+  allowed_claims:
+    - "JWT usage detected for invitations"
+  forbidden_claims:
+    - "uses JWT access tokens"
+  required_uncertainty: []
+privacy:
+  contains_secrets: false

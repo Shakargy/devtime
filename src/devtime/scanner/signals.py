@@ -12,7 +12,7 @@ from __future__ import annotations
 import hashlib
 import sqlite3
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -35,6 +35,21 @@ from devtime.scanner.file_walker import WalkedFile, walk_repository
 from devtime.scanner.language import classify_language
 
 
+SUPPORTED_CONCEPT_FAMILIES = (
+    "Authentication", "Billing Webhooks", "Background Jobs",
+    "Data Export", "Admin Permissions", "File Uploads",
+)
+
+# Frameworks whose routes/controllers V0 does not parse, keyed by a dependency token.
+UNSUPPORTED_FRAMEWORKS = {
+    "django": "Django routes are not parsed in V0; route coverage may be incomplete.",
+    "@nestjs/core": "NestJS controller parsing is not supported in V0; backend route coverage may be incomplete.",
+    "@nestjs/common": "NestJS controller parsing is not supported in V0; backend route coverage may be incomplete.",
+    "rails": "Rails routes are not parsed in V0; route coverage may be incomplete.",
+    "laravel/framework": "Laravel routes are not parsed in V0; route coverage may be incomplete.",
+}
+
+
 @dataclass
 class ScanResult:
     file_count: int
@@ -42,6 +57,25 @@ class ScanResult:
     concept_count: int
     intelligence: list[claims_mod.ConceptIntelligence]
     duration_seconds: float = 0.0
+    pruned_dirs: int = 0
+    skipped_files: int = 0
+    framework_warnings: list[str] = field(default_factory=list)
+
+
+def detect_framework_warnings(signals: list[Signal]) -> list[str]:
+    """Surface coverage gaps for frameworks V0 cannot parse (Trust Repair v0.0.6)."""
+    deps = {
+        (s.name or "").lower()
+        for s in signals
+        if s.kind == "dependency" and s.name
+    }
+    warnings: list[str] = []
+    seen: set[str] = set()
+    for token, message in UNSUPPORTED_FRAMEWORKS.items():
+        if token in deps and message not in seen:
+            warnings.append(f"Framework coverage warning: {message}")
+            seen.add(message)
+    return warnings
 
 
 def _now() -> str:
@@ -95,7 +129,10 @@ def _extract(file: WalkedFile, language: str | None) -> list[Signal]:
     return out
 
 
-def run_scan(root: Path | None = None, *, refresh: bool = False) -> ScanResult:
+def run_scan(
+    root: Path | None = None, *, refresh: bool = False, progress: bool = False
+) -> ScanResult:
+    import sys
     import time
 
     started = time.perf_counter()
@@ -126,10 +163,18 @@ def run_scan(root: Path | None = None, *, refresh: bool = False) -> ScanResult:
 
         all_signals: list[Signal] = []
         file_count = 0
+        walk_stats: dict = {"pruned_dirs": 0, "skipped_files": 0}
+
+        if progress:
+            print("Scanning locally. No code execution. No network.", file=sys.stderr)
 
         for wf in walk_repository(
-            root, matcher, max_bytes, follow_symlinks=bool(scanner_cfg["follow_symlinks"])
+            root, matcher, max_bytes,
+            follow_symlinks=bool(scanner_cfg["follow_symlinks"]),
+            stats=walk_stats,
         ):
+            if progress and file_count and file_count % 1000 == 0:
+                print(f"Progress: {file_count} files scanned...", file=sys.stderr)
             language = classify_language(wf.rel_path)
             file_id = f"file-{uuid.uuid4().hex[:10]}"
             conn.execute(
@@ -199,6 +244,9 @@ def run_scan(root: Path | None = None, *, refresh: bool = False) -> ScanResult:
             concept_count=len(intelligence),
             intelligence=intelligence,
             duration_seconds=round(time.perf_counter() - started, 2),
+            pruned_dirs=walk_stats.get("pruned_dirs", 0),
+            skipped_files=walk_stats.get("skipped_files", 0),
+            framework_warnings=detect_framework_warnings(all_signals),
         )
     finally:
         conn.close()

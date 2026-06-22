@@ -1,0 +1,14 @@
+id: model-download-not-export
+type: false-positive
+language: typescript
+framework: nextjs
+# Trust Repair (v0.0.6): downloading a model artifact is not user data export.
+expected:
+  concepts: []
+  allowed_claims: []
+  forbidden_claims:
+    - "Data Export is present"
+    - "Data Export has active route handling"
+  required_uncertainty: []
+privacy:
+  contains_secrets: false

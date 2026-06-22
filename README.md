@@ -22,17 +22,36 @@ faster than teams can review it, that missing understanding becomes the bottlene
 DevTime builds **evidence-backed repository memory**: a local layer that says what a
 repository can prove, and — just as importantly — what it cannot prove yet.
 
+## Supported concepts (closed ontology)
+
+V0 detects **six** supported concept families — it does not discover arbitrary
+domain concepts yet:
+
+- Authentication
+- Billing Webhooks
+- Background Jobs
+- Data Export
+- Admin Permissions
+- File Uploads
+
+Anything outside these six is out of scope for V0. See [LIMITATIONS.md](LIMITATIONS.md).
+
 ## What DevTime does
 
-- **Detects concepts** — stable units of meaning like Authentication, Billing
-  Webhooks, Background Jobs — from routes, tests, configs, dependencies, and docs.
+- **Detects concepts** — the six supported families above — from routes, tests,
+  configs, dependencies, and docs, with word-sense gates so a coincidental keyword
+  (a job *title*, an avatar *URL*, a `session_id` trace) does not invent a concept.
 - **Explains from evidence** — every claim links to the files/signals behind it.
 - **Surfaces uncertainty** — when evidence is missing (e.g. no decision record), it
   says so instead of guessing.
 - **Scores Understanding Debt** — a product signal for how well a concept can be
   explained, with the causes shown.
-- **Warns about risky changes** — `dtc risk --diff` reviews a git diff against local
-  memory and flags advisory findings.
+- **Warns about a narrow set of risky changes** — `dtc risk --diff` reviews a git
+  diff against local memory and flags *advisory* findings for the change classes it
+  supports (e.g. JWT algorithm weakening, billing-webhook retry without dedupe tests).
+  It reports explicit states: `review_failed`, `no_findings`,
+  `unsupported_change_class` (a known-concept file changed but no rule covers it), and
+  `finding`. "No findings" never means "could not inspect".
 - **Records decisions** — `dtc decision add` stores rationale locally, which reduces
   uncertainty and improves understanding.
 
@@ -139,11 +158,15 @@ Supported claims:
 Uncertainty:
   - No decision was found explaining key choices for Billing Webhooks.
 
-Understanding Debt: 56 / 100 (medium)
+Understanding Score: 56 / 100
+Understanding Debt: medium
 causes:
-  - missing decision evidence
+  - missing or uncorroborated decision evidence
   - no confirmed owner
 ```
+
+> Understanding Score is higher = better understanding; Understanding Debt is a
+> label (low/medium/high), not the same number.
 
 ## Proof
 

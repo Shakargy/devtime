@@ -43,15 +43,54 @@ def privacy_report(root: Path | None = None) -> dict:
     if (root / ".env").exists():
         good.append(".env ignored")
 
-    gitignore = root / ".gitignore"
-    devtime_in_gitignore = (
-        gitignore.exists()
-        and ".devtime/" in gitignore.read_text(encoding="utf-8", errors="ignore")
-    )
-    if not devtime_in_gitignore:
-        warning.append(".devtime/ is not in .gitignore")
+    status = _devtime_ignored(root)
+    if status is True:
+        good.append(".devtime/ is git-ignored")
+    elif status is False:
+        warning.append(".devtime/ is not ignored by git")
         recommended.append(
             "Add `.devtime/` to `.gitignore` unless you intentionally share local memory."
         )
+    else:  # unknown (git unavailable)
+        warning.append("Could not confirm whether .devtime/ is ignored (git unavailable)")
+        recommended.append(
+            "Verify `.devtime/` is ignored, e.g. add it to `.gitignore`."
+        )
 
     return {"good": good, "warning": warning, "recommended": recommended}
+
+
+def _devtime_ignored(root: Path) -> bool | None:
+    """Return True/False if .devtime/ is git-ignored, or None if undeterminable.
+
+    Trust Repair (v0.0.6): prefer `git check-ignore`, which honors parent
+    .gitignore rules, so a nested repo whose parent ignores .devtime/ is not
+    falsely warned. Falls back to a local .gitignore text check.
+    """
+    import subprocess
+
+    # Probe a path *inside* .devtime/ so the dir-only pattern matches even when the
+    # directory does not exist yet, and so parent .gitignore rules are honored.
+    target = ".devtime/devtime.sqlite"
+    try:
+        proc = subprocess.run(
+            ["git", "check-ignore", "-q", target],
+            cwd=str(root),
+            capture_output=True,
+            text=True,
+        )
+        # exit 0 = ignored, 1 = not ignored, 128 = not a git repo / error.
+        if proc.returncode == 0:
+            return True
+        if proc.returncode == 1:
+            return False
+    except FileNotFoundError:
+        pass
+
+    # Fallback: local .gitignore text only (cannot see parent rules).
+    gitignore = root / ".gitignore"
+    if gitignore.exists() and ".devtime/" in gitignore.read_text(
+        encoding="utf-8", errors="ignore"
+    ):
+        return True
+    return None

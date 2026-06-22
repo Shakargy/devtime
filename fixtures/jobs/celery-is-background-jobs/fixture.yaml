@@ -1,0 +1,14 @@
+id: celery-is-background-jobs
+type: concept
+language: python
+framework: celery
+# Trust Repair (v0.0.6): a real Celery task IS Background Jobs (positive control).
+expected:
+  concepts:
+    - Background Jobs
+  allowed_claims:
+    - "Background Jobs"
+  forbidden_claims: []
+  required_uncertainty: []
+privacy:
+  contains_secrets: false

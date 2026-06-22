@@ -168,6 +168,39 @@ def add_decision(
 # Read / reconstruct
 # --------------------------------------------------------------------------- #
 
+# Behaviors a decision may claim that DevTime cannot take on faith — they must be
+# corroborated by scanned implementation evidence (Trust Repair v0.0.6).
+_DECISION_BEHAVIOR_TOKENS = {
+    "retry": ("retry", "retries", "retrying"),
+    "idempotency": ("idempoten",),
+    "deduplication": ("dedupe", "deduplicat", "duplicate delivery", "duplicate-delivery"),
+    "backoff": ("backoff", "back-off"),
+    "rate limiting": ("rate limit", "rate-limit", "ratelimit"),
+}
+
+
+def _decision_corroboration(body: str, impl_text: str) -> tuple[bool, list[str]]:
+    """Return (corroborated, uncorroborated_behaviors).
+
+    A generic decision that claims no specific verifiable behavior is treated as
+    corroborated. A decision that claims a behavior (retry, idempotency, ...) is
+    corroborated only if the scanned implementation evidence shows that behavior.
+    V0 corroboration is signal/evidence-text based and intentionally conservative.
+    """
+    body_l = body.lower()
+    claimed = [
+        label for label, toks in _DECISION_BEHAVIOR_TOKENS.items()
+        if any(t in body_l for t in toks)
+    ]
+    if not claimed:
+        return True, []
+    uncorroborated = [
+        label for label in claimed
+        if not any(t in impl_text for t in _DECISION_BEHAVIOR_TOKENS[label])
+    ]
+    return (len(uncorroborated) == 0), uncorroborated
+
+
 def _row_to_evidence(row: sqlite3.Row) -> EvidenceItem:
     meta = json.loads(row["metadata_json"] or "{}")
     signal = Signal(
@@ -214,24 +247,39 @@ def _load_for_concept_row(conn: sqlite3.Connection, row: sqlite3.Row) -> Concept
         confidence=row["confidence"],
         signals=[e.signal for e in evidence],
     )
-    # Attach human decisions as decision-kind evidence so scoring/uncertainty see them.
-    for d in conn.execute(
+    # Attach human decisions — but only CORROBORATED decisions count as evidence
+    # (Trust Repair v0.0.6). A decision that describes behavior the scanned code does
+    # not show must not clear uncertainty or improve the score.
+    impl_text = " ".join(
+        " ".join(
+            str(x) for x in (e.summary, e.signal.name, e.signal.kind, e.path) if x
+        ).lower()
+        for e in evidence  # only scanned evidence so far (decisions not yet added)
+    )
+    decision_rows = conn.execute(
         "SELECT * FROM decisions WHERE concept_id = ? AND status = 'active'",
         (concept_id,),
-    ).fetchall():
-        evidence.append(
-            EvidenceItem(
-                concept_slug=row["slug"],
-                kind="decision",
-                strength="strong",
-                summary=f"Decision: {d['title']}",
-                path=None,
-                start_line=None,
-                end_line=None,
-                signal=Signal(kind="decision", name=d["title"], file_rel_path="(decision)"),
-                supports_claim_types=["decision"],
+    ).fetchall()
+    any_decision_exists = len(decision_rows) > 0
+    uncorroborated_notes: list[tuple[str, list[str]]] = []
+    for d in decision_rows:
+        corroborated, missing = _decision_corroboration(d["body"] or "", impl_text)
+        if corroborated:
+            evidence.append(
+                EvidenceItem(
+                    concept_slug=row["slug"],
+                    kind="decision",
+                    strength="strong",
+                    summary=f"Decision: {d['title']} (corroborated by implementation evidence)",
+                    path=None,
+                    start_line=None,
+                    end_line=None,
+                    signal=Signal(kind="decision", name=d["title"], file_rel_path="(decision)"),
+                    supports_claim_types=["decision"],
+                )
             )
-        )
+        else:
+            uncorroborated_notes.append((d["title"], missing))
 
     claims = [
         Claim(
@@ -247,7 +295,7 @@ def _load_for_concept_row(conn: sqlite3.Connection, row: sqlite3.Row) -> Concept
             "SELECT * FROM claims WHERE concept_id = ?", (concept_id,)
         ).fetchall()
     ]
-    has_decision = any(e.kind == "decision" for e in evidence)
+    has_corroborated_decision = any(e.kind == "decision" for e in evidence)
     uncertainties = [
         Uncertainty(
             type=r["type"], text=r["text"], action=r["action"], severity=r["severity"]
@@ -255,11 +303,26 @@ def _load_for_concept_row(conn: sqlite3.Connection, row: sqlite3.Row) -> Concept
         for r in conn.execute(
             "SELECT * FROM uncertainties WHERE concept_id = ?", (concept_id,)
         ).fetchall()
-        # A recorded decision resolves the matching "missing decision" uncertainty.
-        if not (has_decision and r["type"] == "missing_decision")
+        # A decision (corroborated or not) means a decision *was* found, so the
+        # "no decision was found" uncertainty no longer applies verbatim.
+        if not (any_decision_exists and r["type"] == "missing_decision")
     ]
-    # Keep uncertainty-typed claims consistent with resolved decisions too.
-    if has_decision:
+    # Uncorroborated decisions preserve uncertainty with an explicit corroboration note.
+    for title, missing in uncorroborated_notes:
+        behaviors = ", ".join(missing) if missing else "the described behavior"
+        uncertainties.append(
+            Uncertainty(
+                type="decision_not_corroborated",
+                text=(
+                    f"Decision '{title}' exists, but {behaviors} is not corroborated "
+                    f"by scanned implementation evidence."
+                ),
+                action="Confirm the decision matches the implementation, or update one of them.",
+                severity="medium",
+            )
+        )
+    # Only a corroborated decision may remove the uncertainty-typed claim.
+    if has_corroborated_decision:
         claims = [
             c for c in claims
             if not (c.type == "uncertainty" and "decision" in c.text.lower())

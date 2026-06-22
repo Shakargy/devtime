@@ -58,22 +58,74 @@ def _has_strong_route(evidence: list[EvidenceItem]) -> list[EvidenceItem]:
     return [e for e in evidence if e.kind == "route" and e.strength == "strong"]
 
 
+def _concept_presence_claim(concept: ConceptCandidate, evidence: list[EvidenceItem]) -> Claim:
+    """Strength-aware presence claim. Trust Repair (v0.0.6): never say
+    'is present' for low-confidence / dependency-only concepts, and never
+    contradict the uncertainty section.
+    """
+    name = concept.name
+    weak_only = getattr(concept, "weak_only", False)
+    conf = concept.confidence
+    has_behavior = any(
+        e.signal.kind in ("route", "auth_dependency", "middleware",
+                          "webhook_signature_verification", "background_job",
+                          "token_usage", "queue")
+        for e in evidence
+    )
+
+    if not weak_only and conf >= 0.75 and has_behavior:
+        text = f"{name} is present and supported by behavior evidence."
+        state = "supported"
+    elif not weak_only and conf >= 0.5:
+        text = f"{name} signals are present, but behavior is only partially established."
+        state = "partial"
+    else:
+        text = (
+            f"Possible {name} signals detected. "
+            f"{name} behavior is not established from current evidence."
+        )
+        state = "weak"
+    return Claim(type="concept", text=text, confidence=conf, state=state, evidence=evidence[:4])
+
+
+def _jwt_claim(name: str, jwt_usage: list[EvidenceItem]) -> Claim:
+    """Purpose-aware JWT claim. Trust Repair (v0.0.6): only assert access-token
+    behavior when the evidence shows it; invitation JWTs are not access tokens.
+    """
+    purposes = {e.signal.metadata.get("purpose", "unclear") for e in jwt_usage}
+    if "access" in purposes:
+        return Claim(
+            type="usage",
+            text=f"{name} uses JWT access tokens.",
+            confidence=0.85,
+            evidence=jwt_usage,
+        )
+    if purposes <= {"invitation"}:
+        return Claim(
+            type="usage",
+            text="JWT usage detected for invitations; access-token behavior not established.",
+            confidence=0.6,
+            state="partial",
+            evidence=jwt_usage,
+        )
+    return Claim(
+        type="usage",
+        text="JWT usage detected; token purpose not fully classified.",
+        confidence=0.55,
+        state="partial",
+        evidence=jwt_usage,
+    )
+
+
 def generate_claims_and_uncertainty(
     concept: ConceptCandidate, evidence: list[EvidenceItem]
 ) -> tuple[list[Claim], list[Uncertainty]]:
     claims: list[Claim] = []
     uncertainties: list[Uncertainty] = []
 
-    # concept claim — supported by the matched evidence itself.
+    # concept claim — strength-aware (never "is present" for weak evidence).
     if evidence:
-        claims.append(
-            Claim(
-                type="concept",
-                text=f"{concept.name} is present in this repository.",
-                confidence=concept.confidence,
-                evidence=evidence[:4],
-            )
-        )
+        claims.append(_concept_presence_claim(concept, evidence))
 
     # behavior claim — active route handling.
     routes = _has_strong_route(evidence)
@@ -87,17 +139,10 @@ def generate_claims_and_uncertainty(
             )
         )
 
-    # usage claim — JWT access tokens (usage is not decision).
+    # usage claim — JWT, purpose-aware (usage is not decision).
     jwt_usage = _has(evidence, "token_usage")
     if jwt_usage:
-        claims.append(
-            Claim(
-                type="usage",
-                text=f"{concept.name} uses JWT access tokens.",
-                confidence=0.88,
-                evidence=jwt_usage,
-            )
-        )
+        claims.append(_jwt_claim(concept.name, jwt_usage))
 
     # behavior claim — webhook signature verification.
     sig = _has(evidence, "webhook_signature_verification")

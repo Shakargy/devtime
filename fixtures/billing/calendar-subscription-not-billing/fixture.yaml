@@ -1,0 +1,15 @@
+id: calendar-subscription-not-billing
+type: false-positive
+language: typescript
+framework: nextjs
+# Trust Repair (v0.0.6): a calendar subscription webhook (Cal.com-style) is NOT
+# Billing Webhooks. "subscription" without payment context is not billing.
+expected:
+  concepts: []
+  allowed_claims: []
+  forbidden_claims:
+    - "Billing Webhooks is present"
+    - "Billing Webhooks has active route handling"
+  required_uncertainty: []
+privacy:
+  contains_secrets: false

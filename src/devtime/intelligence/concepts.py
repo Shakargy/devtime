@@ -74,19 +74,29 @@ ANCHOR_KINDS = {
     "background_job",
     "token_usage",
     "queue",
+    "upload_endpoint",
 }
 
 # Tokens that justify naming a concept "Billing Webhooks". Reality Hardening
-# (v0.0.2): billing evidence must be *file-local* to webhook evidence, not just
-# present somewhere in the repo.
+# (v0.0.2): billing evidence must be *file-local* to webhook evidence. Trust Repair
+# (v0.0.6): a bare "subscription" is NOT billing (calendar subscriptions, etc.) —
+# require a payment provider or an explicit billing/payment term.
 BILLING_PROVIDER_TOKENS = (
-    "stripe", "paypal", "braintree", "chargebee", "lemonsqueezy", "paddle",
+    "stripe", "paypal", "braintree", "chargebee", "lemonsqueezy", "paddle", "razorpay",
 )
 BILLING_TERM_TOKENS = (
-    "billing", "subscription", "invoice", "checkout", "payment",
+    "billing", "invoice", "checkout", "payment", "customer.subscription",
 )
 BILLING_TOKENS = BILLING_PROVIDER_TOKENS + BILLING_TERM_TOKENS
 WEBHOOK_TOKENS = ("webhook",)
+
+# Execution dependencies that justify a Background Jobs concept on their own.
+JOB_EXECUTION_DEPS = (
+    "celery", "bullmq", "sidekiq", "dramatiq", "rq", "kombu", "bull", "agenda",
+    "sqs", "kafka", "rabbitmq", "resque",
+)
+# Upload-related dependencies.
+UPLOAD_DEPS = ("multer", "busboy", "formidable", "multipart", "minio")
 
 
 @dataclass
@@ -171,6 +181,75 @@ def _meaningful_signals(matched: list[Signal]) -> list[Signal]:
     return out
 
 
+def _has_concept_anchor(slug: str, matched: list[Signal]) -> bool:
+    """Require a concept-appropriate behavior anchor (Trust Repair v0.0.6).
+
+    Word-sense protection: a concept is only emitted when at least one signal
+    actually demonstrates that concept's behavior — not a coincidental keyword
+    (job *title*, avatar *URL*, *session_id* trace, model *download*, etc.).
+    """
+    kinds = {s.kind for s in matched}
+
+    def dep_hit(tokens) -> bool:
+        return any(
+            s.kind == "dependency" and any(t in _signal_haystack(s) for t in tokens)
+            for s in matched
+        )
+
+    if slug == "background_jobs":
+        if {"background_job", "queue"} & kinds:
+            return True
+        return dep_hit(JOB_EXECUTION_DEPS)
+
+    if slug == "file_uploads":
+        if "upload_endpoint" in kinds:
+            return True
+        if dep_hit(UPLOAD_DEPS):
+            return True
+        # A route whose own path/handler is about uploading.
+        return any(
+            s.kind == "route" and "upload" in _signal_haystack(s) for s in matched
+        )
+
+    if slug == "data_export":
+        # Distinguish user-data export from model/artifact/dependency downloads.
+        artifact_terms = ("model", "artifact", "asset", "package", "dependency",
+                          "plugin", "binary", "weights", "checkpoint")
+        for s in matched:
+            if s.kind != "route":
+                continue
+            hay = _signal_haystack(s)
+            if any(t in hay for t in ("export", "csv", "report", "backup")):
+                return True
+            if "download" in hay and not any(a in hay for a in artifact_terms):
+                return True
+        return False
+
+    if slug == "admin_permissions":
+        return any(
+            s.kind in ("middleware", "route")
+            and any(t in _signal_haystack(s)
+                    for t in ("admin", "superuser", "rbac", "owner", "role", "authorize"))
+            for s in matched
+        )
+
+    if slug == "authentication":
+        if {"auth_dependency", "token_usage"} & kinds:
+            return True
+        if any(s.kind == "middleware" for s in matched):
+            return True
+        return any(
+            s.kind == "route"
+            and any(t in _signal_haystack(s)
+                    for t in ("login", "logout", "signin", "sign-in", "/auth", "oauth",
+                              "token", "register", "password", "session/"))
+            for s in matched
+        )
+
+    # billing_webhooks is gated separately by _passes_billing_gate.
+    return True
+
+
 def _passes_billing_gate(slug: str, matched: list[Signal]) -> bool:
     """Billing Webhooks requires webhook evidence and billing evidence that are
     *local to each other* — in the same file (the tightest evidence cluster).
@@ -216,6 +295,12 @@ def detect_concepts(signals: list[Signal]) -> list[ConceptCandidate]:
         # evidence. Only meaningful signals count — an e2e spec under a path like
         # tests-e2e/specs/billing.e2e.spec.ts must not satisfy the billing gate.
         if not _passes_billing_gate(slug, meaningful):
+            continue
+
+        # Gate 3: require a concept-appropriate behavior anchor (word-sense).
+        # A coincidental keyword (job title, avatar URL, session_id trace) is not
+        # enough to emit the concept.
+        if not _has_concept_anchor(slug, meaningful):
             continue
 
         score = score_template_match(template, matched)

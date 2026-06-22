@@ -86,15 +86,22 @@ def scan(
     from devtime.scanner.signals import run_scan
 
     try:
-        result = run_scan(refresh=refresh)
+        result = run_scan(refresh=refresh, progress=True)
     except Exception as exc:  # noqa: BLE001
         console.print(f"[red]Scan failed:[/red] {exc}")
         raise typer.Exit(code=3)
     console.print(
-        f"[green]Scan complete.[/green] {result.file_count} files, "
+        f"[green]Scan complete.[/green] Scanned {result.file_count} files, "
         f"{result.signal_count} signals, {result.concept_count} concepts "
         f"in {result.duration_seconds}s."
     )
+    console.print(
+        f"Pruned directories: {result.pruned_dirs}   "
+        f"Skipped/ignored files: {result.skipped_files}"
+    )
+    console.print("Supported V0 concept families: 6 (closed ontology).")
+    for w in result.framework_warnings:
+        console.print(f"[yellow]{w}[/yellow]")
     console.print("Nothing left this machine. Run [bold]dtc concepts[/bold] to inspect.")
 
 
@@ -156,36 +163,49 @@ def risk(
     import subprocess
 
     from devtime.db import connection, repository
-    from devtime.intelligence.risk import parse_unified_diff, review_diff
-    from devtime.output.markdown import render_risk_findings
+    from devtime.intelligence.risk import (
+        STATE_REVIEW_FAILED,
+        parse_unified_diff,
+        review_diff,
+        review_failed,
+    )
+    from devtime.output.markdown import render_risk_review
 
     if not paths.is_initialized():
         console.print("[red]Not initialized.[/red] Run dtc init.")
         raise typer.Exit(code=2)
 
+    # Git failure must surface as review_failed, never as "no findings".
     try:
         # --relative emits paths relative to the current directory, so diff paths
         # match scan-root-relative evidence even when the scan root is a subdirectory
         # of the git repository (e.g. running the demo from examples/demo-saas).
-        diff_text = subprocess.run(
+        proc = subprocess.run(
             ["git", "diff", "--relative", base],
             capture_output=True,
             text=True,
             check=False,
-        ).stdout
+        )
     except FileNotFoundError:
-        console.print("[red]git not found.[/red] Risk review needs a git diff.")
+        console.print(render_risk_review(review_failed("git executable not found")), markup=False)
         raise typer.Exit(code=1)
 
-    info = parse_unified_diff(diff_text)
+    if proc.returncode != 0:
+        reason = (proc.stderr or "git diff returned a non-zero exit code").strip()
+        console.print(render_risk_review(review_failed(reason)), markup=False)
+        raise typer.Exit(code=1)
+
+    info = parse_unified_diff(proc.stdout)
     conn = connection.connect()
     try:
         intelligence = repository.load_all_concepts(conn)
     finally:
         conn.close()
 
-    findings = review_diff(info, intelligence)
-    console.print(render_risk_findings(findings))
+    review = review_diff(info, intelligence)
+    console.print(render_risk_review(review), markup=False)
+    if review.state == STATE_REVIEW_FAILED:
+        raise typer.Exit(code=1)
 
 
 # --------------------------------------------------------------------------- #
@@ -286,7 +306,17 @@ def decision_add(
 
 @mcp_app.command("start")
 def mcp_start() -> None:
-    """Start local read-only MCP server."""
+    """Preview planned read-only MCP tools. Does NOT start a server in V0."""
+    from devtime.mcp.server import describe_server
+
+    console.print(describe_server())
+    # Honest exit: nothing was started, so a command named "start" returns nonzero.
+    raise typer.Exit(code=1)
+
+
+@mcp_app.command("preview")
+def mcp_preview() -> None:
+    """Preview planned read-only MCP tools (transport not implemented in V0)."""
     from devtime.mcp.server import describe_server
 
     console.print(describe_server())

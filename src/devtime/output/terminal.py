@@ -9,6 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from rich.console import Console
+from rich.markup import escape
 
 from devtime import config, paths
 from devtime.db import connection, repository
@@ -68,20 +69,23 @@ def print_explanation(concept: str, root: Path | None = None) -> None:
             console.print("  (none)")
         for c in supported:
             paths_str = ", ".join(dict.fromkeys(e.path for e in c.evidence if e.path)) or "n/a"
-            console.print(f"  - {c.text}")
+            console.print(f"  - {escape(c.text)}")
             console.print(
-                f"    [dim]type: {c.type}  confidence: {c.confidence:.2f}  evidence: {paths_str}[/dim]"
+                f"    [dim]type: {c.type}  confidence: {c.confidence:.2f}  "
+                f"evidence: {escape(paths_str)}[/dim]"
             )
 
         console.print("\n[bold]Uncertainty:[/bold]")
         if not ci.uncertainties:
             console.print("  (none)")
         for u in ci.uncertainties:
-            console.print(f"  - {u.text}")
+            console.print(f"  - {escape(u.text)}")
 
+        # Trust Repair: Understanding Score (higher = better); Debt is a label.
         console.print(
-            f"\n[bold]Understanding Debt:[/bold] {us.score} / 100 ({us.debt_label})"
+            f"\n[bold]Understanding Score:[/bold] {us.score} / 100"
         )
+        console.print(f"[bold]Understanding Debt:[/bold] {us.debt_label}")
         if us.causes:
             console.print("causes:")
             for cause in us.causes:
@@ -106,7 +110,7 @@ def print_evidence(concept: str, root: Path | None = None) -> None:
         console.print(f"[bold]Evidence for {ci.concept.name}[/bold]\n")
         for e in ci.evidence:
             loc = f" ({e.path})" if e.path else ""
-            console.print(f"- [{e.strength}] {e.summary}{loc}")
+            console.print(f"- [{e.strength}] {escape(e.summary + loc)}")
     finally:
         conn.close()
 
@@ -121,10 +125,10 @@ def print_debt(root: Path | None = None) -> None:
             ((ci, compute_understanding(ci)) for ci in items),
             key=lambda pair: pair[1].score,
         )
-        console.print("[bold]Understanding Debt[/bold]\n")
+        console.print("[bold]Understanding Score and Debt[/bold]\n")
         for ci, us in scored:
             console.print(
-                f"[bold]{ci.concept.name}[/bold] - score {us.score}/100 ({us.debt_label})"
+                f"[bold]{ci.concept.name}[/bold] - score {us.score}/100, debt {us.debt_label}"
             )
             for cause in us.causes:
                 console.print(f"  - {cause}")
@@ -144,7 +148,8 @@ def print_context(concept: str, mode: str, root: Path | None = None) -> str | No
             return None
         pack = generate_context_pack(ci, mode=mode)
         md = render_markdown(pack)
-        console.print(md)
+        # markup=False so filesystem paths like calendar/[provider]/route.ts render literally.
+        console.print(md, markup=False)
         # Persist the generated pack to memory.
         repository_save_context_pack(conn, ci.concept.slug, mode, md)
         return md

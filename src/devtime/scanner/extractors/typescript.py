@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import re
 
-from devtime.scanner.extractors.base import Signal, read_text, signal
+from devtime.scanner.extractors.base import (
+    Signal,
+    classify_jwt_purpose,
+    read_text,
+    signal,
+)
 from devtime.scanner.file_walker import WalkedFile
 
 _IMPORT_RE = re.compile(r"""import\s+.*?from\s+['"]([^'"]+)['"]""")
@@ -60,7 +65,22 @@ def extract_typescript_signals(file: WalkedFile) -> list[Signal]:
         )
 
     if re.search(r"\bjsonwebtoken\b|\bjwt\.(sign|verify)\b", text):
-        signals.append(signal("token_usage", name="jwt", file=file, confidence=0.8))
+        purpose = classify_jwt_purpose(text, file.rel_path)
+        signals.append(
+            signal(
+                "token_usage",
+                name="jwt",
+                file=file,
+                confidence=0.8,
+                metadata={"purpose": purpose},
+            )
+        )
+
+    # File uploads: multipart / multer / busboy / formData with a file part.
+    if re.search(r"multipart/form-data|\bmulter\b|\bbusboy\b|\.formData\(", text):
+        signals.append(
+            signal("upload_endpoint", name="upload", file=file, confidence=0.75)
+        )
 
     for match in _BULLMQ_WORKER_RE.finditer(text):
         signals.append(
