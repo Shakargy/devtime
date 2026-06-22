@@ -193,4 +193,4 @@ it never regresses. See `fixtures/` for the format and `tests/` for how they run
 
 ## License
 
-No license has been chosen yet. **TODO: choose a license before public release.**
+Licensed under the **Apache License 2.0**. See [LICENSE](LICENSE).

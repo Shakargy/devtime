@@ -58,7 +58,7 @@ public release gate.**
 
 - [x] README.md, QUICKSTART.md, PROOF.md, LIMITATIONS.md, DEMO_SCRIPT.md, RELEASE_CHECKLIST.md present
 - [x] `.gitignore`, `.gitattributes`, CI workflows present
-- [ ] **LICENSE chosen** *(pending — see TODO in README; required before public)*
+- [x] **LICENSE chosen** — Apache-2.0 (`LICENSE`, declared in `pyproject.toml`)
 - [ ] Repository description / topics set on GitHub *(human)*
 
 ## 9. Public release gate (all must be true)
@@ -68,7 +68,7 @@ public release gate.**
 - [ ] Demo video recorded
 - [ ] First 5–10 private reviewers have tested it
 - [ ] No major confusion reported about the README
-- [ ] LICENSE chosen
+- [x] LICENSE chosen (Apache-2.0)
 - [ ] **Human approves flipping the repo to public**
 
 ## 10. Post-release feedback loop
@@ -80,5 +80,5 @@ public release gate.**
 
 ---
 
-**Status:** ready for **private reviewers**. Not yet ready for **public** — blockers:
-LICENSE selection, a recorded demo video, and reviewer feedback.
+**Status:** ready for **private reviewers**. Not yet ready for **public** — remaining
+blockers: a recorded demo video and reviewer feedback (LICENSE is now Apache-2.0).
