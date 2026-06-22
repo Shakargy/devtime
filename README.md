@@ -103,7 +103,7 @@ The narrative:
 
 - **Before a decision:** Billing Webhooks has strong evidence (route, signature
   verification, test) *and* uncertainty — no decision explains its key choices.
-  Understanding Score is `56/100`.
+  Understanding Score is `58/100`.
 - **Risk review:** changing retry behavior without updating duplicate-delivery tests
   is flagged **high severity**.
 - **After a corroborated decision:** the reasoning is now in repository memory (and
@@ -160,7 +160,7 @@ Supported claims:
 Uncertainty:
   - No decision was found explaining key choices for Billing Webhooks.
 
-Understanding Score: 56 / 100
+Understanding Score: 58 / 100
 Understanding Debt: medium
 causes:
   - missing or uncorroborated decision evidence

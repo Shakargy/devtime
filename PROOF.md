@@ -98,8 +98,9 @@ Admin Permissions in `38 signals` across `15 files` in ~0.1s.
 - **Authentication scores higher because an ADR exists** (`docs/decisions/0001-use-jwt.md`):
   its "why" is documented.
 - **Billing Webhooks scores lower because no decision exists**: strong behavior
-  evidence (route + Stripe signature verification + test) but Understanding Debt
-  `56/100` with explicit uncertainty "No decision was found explaining key choices".
+  evidence (route + Stripe signature verification + test) but Understanding Score
+  `58/100` (debt medium) with explicit uncertainty "No decision was found explaining
+  key choices".
 
 ## 4. Real repo validation proof
 
@@ -122,9 +123,11 @@ after **`confidence: high`** with real `app/api/.../route.ts` route evidence.
 longer detected** (its only billing association was an e2e spec path). Real billing
 webhooks (Snapilio PayPal, demo Stripe) are still correctly detected.
 
-**Demo — the decision loop:** `dtc explain "Billing Webhooks"` → Understanding Debt
-`56/100` with uncertainty. After `dtc decision add`, the uncertainty clears and debt
-improves to **`72/100`**.
+**Demo — the decision loop:** `dtc explain "Billing Webhooks"` → Understanding Score
+`58/100` (debt medium) with uncertainty. After a **corroborated** `dtc decision add`
+("Use Stripe for billing"), the uncertainty clears and the Understanding Score
+improves to **`79/100`** (debt low). An *uncorroborated* decision (e.g. claiming retry
+behavior the code lacks) leaves the uncertainty in place.
 
 **Demo — risk review:** with retry behavior changed and no duplicate-delivery test
 touched, `dtc risk --diff` flags **high severity**: "Retry behavior changed without

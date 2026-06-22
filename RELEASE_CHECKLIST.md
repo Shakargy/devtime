@@ -70,8 +70,13 @@ public release gate.**
 
 ## 6. Demo
 
-- [x] Demo commands verified end to end
+- [x] Demo commands verified end to end (v0.0.7; see DEMO_SCRIPT.md / DEMO_OUTPUT.md)
+- [x] Expected output matches current behavior (Auth 79/low, Billing 58/medium → 79/low)
 - [x] Safe demo diff documented with revert step
+- [x] Risk-diff demo fires (high finding) and reverts cleanly
+- [x] Decision loop is truthful (corroborated improves; uncorroborated stays flagged)
+- [x] `git status` is clean after reset/revert (verified)
+- [x] Demo duration fits 2–3 minutes (~2m40s)
 - [ ] 2–3 minute demo video recorded *(pending — human)*
 
 ## 7. Packaging

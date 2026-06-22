@@ -62,7 +62,7 @@ Scan complete. 15 files, 38 signals, 5 concepts in 0.1s.
 
 ```
 1. Billing Webhooks   confidence: high    debt: medium
-2. Authentication     confidence: high    debt: medium
+2. Authentication     confidence: high    debt: low
 3. Background Jobs    confidence: medium  debt: high
 4. Data Export        confidence: medium  debt: high
 5. Admin Permissions  confidence: medium  debt: high
@@ -70,7 +70,7 @@ Scan complete. 15 files, 38 signals, 5 concepts in 0.1s.
 
 `dtc explain "Billing Webhooks"` shows supported claims with evidence, an
 **Uncertainty** section ("No decision was found explaining key choices…"), an
-**Understanding Score** of `56 / 100` (higher = better), and an **Understanding Debt**
+**Understanding Score** of `58 / 100` (higher = better), and an **Understanding Debt**
 label (`medium`).
 
 V0 detects six supported concept families (closed ontology): Authentication, Billing
