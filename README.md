@@ -112,6 +112,14 @@ The narrative:
 
 A full, copy-pasteable walkthrough is in **[DEMO_SCRIPT.md](DEMO_SCRIPT.md)**.
 
+## Demo
+
+A 2-minute demo video is ready for public release.
+
+TODO before public launch:
+- Upload `devtime-demo-v0.0.8.mp4`
+- Add the public video link here
+
 ## Installation
 
 Requires **Python ≥ 3.11** and git.
