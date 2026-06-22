@@ -38,7 +38,16 @@ CONCEPT_IMPORT_HINTS = {
     "File Uploads": ("multer", "busboy", "uploadfile"),
 }
 
-_TEST_DIR_TOKENS = ("/tests/", "/test/", "/__tests__/", "/spec/", "/specs/")
+# Path segments that mark a directory as test-only. A test-only directory can never
+# be "the same directory as the implementation" (Codex blocker 1: __e2e__).
+_TEST_DIR_SEGMENTS = (
+    "tests", "test", "__tests__", "spec", "specs", "e2e", "__e2e__",
+    "integration", "unit", "cypress", "playwright", "e2e-tests", "__test__",
+)
+
+
+def _is_test_only_dir(dir_path: str) -> bool:
+    return any(seg in _TEST_DIR_SEGMENTS for seg in dir_path.lower().split("/"))
 
 
 @dataclass
@@ -117,15 +126,16 @@ def _impl_modules(ci: ConceptIntelligence) -> set[str]:
 
 
 def _impl_dirs_non_test(ci: ConceptIntelligence) -> set[str]:
-    """Directories of real (non-test) implementation evidence files."""
+    """Directories of real (non-test) implementation evidence files. Excludes any
+    directory that is itself test-only (e2e/spec/unit/...)."""
     dirs: set[str] = set()
     for e in ci.evidence:
         if not e.path or e.signal.kind == "test":
             continue
-        low = "/" + e.path.lower()
-        if any(t in low for t in _TEST_DIR_TOKENS):
-            continue  # a non-test file that still lives under a tests/ tree
-        dirs.add(posixpath.dirname(e.path))
+        d = posixpath.dirname(e.path)
+        if _is_test_only_dir(d):
+            continue  # a non-test file living under a test tree is not "the impl dir"
+        dirs.add(d)
     return dirs
 
 
@@ -139,6 +149,11 @@ def _rank_tests(ci: ConceptIntelligence) -> list[TestRec]:
     package/keyword/monorepo token."""
     impl_dirs = _impl_dirs_non_test(ci)
     impl_modules = _impl_modules(ci)
+    impl_paths = [
+        e.path.lower().rsplit(".", 1)[0]
+        for e in ci.evidence
+        if e.path and e.signal.kind != "test"
+    ]
     hints = CONCEPT_IMPORT_HINTS.get(ci.concept.name, ())
 
     recs: list[TestRec] = []
@@ -150,16 +165,26 @@ def _rank_tests(ci: ConceptIntelligence) -> list[TestRec]:
         d = posixpath.dirname(e.path)
         imports = [str(i).lower() for i in e.signal.metadata.get("imports", [])]
 
-        imported = any(any(m in imp for m in impl_modules) for imp in imports) or any(
-            any(h in imp for h in hints) for imp in imports
-        )
+        # An import matches the implementation if it: references a specific impl
+        # module token, matches a dotted module path against an impl file path
+        # (plane.bgtasks.copy_s3_object -> plane/bgtasks/copy_s3_object), or hits a
+        # concept-specific import hint.
+        def _matches(imp: str) -> bool:
+            if any(m in imp for m in impl_modules):
+                return True
+            frag = imp.replace(".", "/")
+            if len(frag) >= 6 and any(frag in p for p in impl_paths):
+                return True
+            return any(h in imp for h in hints)
+
+        imported = any(_matches(imp) for imp in imports)
         if imported:
             recs.append(TestRec(
                 e.path,
                 "Recommended because it imports or tests the implementation.",
                 4,
             ))
-        elif d in impl_dirs:
+        elif d in impl_dirs and not _is_test_only_dir(d):
             recs.append(TestRec(
                 e.path,
                 "Recommended because it is in the same directory as the implementation.",

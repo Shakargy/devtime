@@ -209,3 +209,77 @@ def test_plane_bg_tasks_reason_is_import_not_same_directory():
     for t in bg_recs:
         assert "imports or tests the implementation" in t.reason
         assert "same directory" not in t.reason
+
+
+# --- Codex final blockers: must survive the SQLite save/load round-trip ------
+
+def _scan_and_load(tmp_path, fixture_rel, concept_name):
+    """Scan a fixture into a temp .devtime and load via the repository, exactly
+    like `dtc context` does (catches metadata lost on save/load)."""
+    import shutil
+
+    from devtime.db import connection, repository
+    from devtime.scanner.signals import run_scan
+
+    dest = tmp_path / "repo"
+    shutil.copytree(FIXTURES_DIR / fixture_rel, dest)
+    run_scan(root=dest)
+    conn = connection.connect(dest)
+    try:
+        return repository.load_concept(conn, concept_name)
+    finally:
+        conn.close()
+
+
+def test_bg_tasks_import_reason_survives_db_roundtrip(tmp_path):
+    bg = _scan_and_load(
+        tmp_path, "jobs/bg-tasks-test-attaches-to-background-jobs/repo", "background_jobs"
+    )
+    assert bg is not None
+    pack = generate_context_pack(bg, mode="risk")
+    bg_recs = [t for t in pack.tests_to_run if "bg_tasks" in t.path]
+    assert bg_recs, "bg_tasks test must be recommended after DB round-trip"
+    assert all("imports or tests the implementation" in t.reason for t in bg_recs)
+    assert all("same directory" not in t.reason for t in bg_recs)
+
+
+def test_e2e_spec_dir_never_gets_same_directory_reason():
+    from devtime.intelligence.concepts import ConceptCandidate
+
+    sig = [
+        Signal(kind="route", name="GET /api/auth/[...nextauth]",
+               file_rel_path="web/src/app/api/auth/[...nextauth]/route.ts", confidence=0.8),
+        # A non-test helper that lives in the e2e dir, plus the e2e auth spec there.
+        Signal(kind="middleware", name="auth",
+               file_rel_path="web/src/__e2e__/helpers.ts", confidence=0.7),
+        Signal(kind="test", name="user can log in",
+               file_rel_path="web/src/__e2e__/auth.spec.ts", confidence=0.8,
+               metadata={"e2e": False, "imports": []}),
+    ]
+    cand = ConceptCandidate(slug="authentication", name="Authentication",
+                            kind="system_concept", confidence=0.85, signals=sig)
+    ci = build_concept_intelligence(cand, build_evidence(cand))
+    pack = generate_context_pack(ci, mode="risk")
+    for t in pack.tests_to_run:
+        if "auth.spec.ts" in t.path:
+            assert "same directory" not in t.reason
+
+
+def test_same_directory_still_works_for_real_colocated_test():
+    from devtime.intelligence.concepts import ConceptCandidate
+
+    sig = [
+        Signal(kind="route", name="POST /api/stripe/webhook",
+               file_rel_path="src/billing/webhook.ts", confidence=0.8),
+        Signal(kind="webhook_signature_verification", name="stripe",
+               file_rel_path="src/billing/webhook.ts", confidence=0.9),
+        Signal(kind="test", name="webhook signature test",
+               file_rel_path="src/billing/webhook.test.ts", confidence=0.8,
+               metadata={"e2e": False, "imports": []}),
+    ]
+    cand = ConceptCandidate(slug="billing_webhooks", name="Billing Webhooks",
+                            kind="system_concept", confidence=0.85, signals=sig)
+    ci = build_concept_intelligence(cand, build_evidence(cand))
+    pack = generate_context_pack(ci, mode="risk")
+    rec = next(t for t in pack.tests_to_run if "webhook.test.ts" in t.path)
+    assert "same directory" in rec.reason

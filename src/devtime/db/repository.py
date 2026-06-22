@@ -107,6 +107,9 @@ def save_intelligence(
                             "signal_confidence": e.signal.confidence,
                             "signal_name": e.signal.name,
                             "supports": e.supports_claim_types,
+                            # Persist signal metadata (imports/e2e/purpose) so the
+                            # Context Pack import reason survives a save/load round-trip.
+                            "signal_metadata": e.signal.metadata,
                         }
                     ),
                     _now(),
@@ -208,6 +211,7 @@ def _row_to_evidence(row: sqlite3.Row) -> EvidenceItem:
         name=meta.get("signal_name"),
         file_rel_path=row["path"] or "",
         confidence=meta.get("signal_confidence", 0.5),
+        metadata=meta.get("signal_metadata", {}) or {},
     )
     return EvidenceItem(
         concept_slug=row["concept_id"],
