@@ -152,6 +152,26 @@ def test_s3_signing_diagnostics_test_is_not_auth_headline():
     assert "auth" in cited.lower()
 
 
+def test_s3_diagnostics_dropped_even_when_content_mentions_auth():
+    # The s3 signing test name mentions "authentication", but its file path is a
+    # storage/signing domain -> must be dropped from Authentication evidence.
+    signals = [
+        Signal(kind="route", name="GET /api/auth/[...nextauth]",
+               file_rel_path="src/app/api/auth/[...nextauth]/route.ts", confidence=0.8),
+        Signal(kind="test", name="signs s3 url and checks authentication header",
+               file_rel_path="packages/shared/src/server/services/s3SigningDiagnostics.test.ts",
+               confidence=0.8, metadata={"e2e": False, "imports": ["aws-sdk"]}),
+        Signal(kind="test", name="user can log in",
+               file_rel_path="web/src/__e2e__/auth.spec.ts", confidence=0.8,
+               metadata={"e2e": False, "imports": []}),
+    ]
+    cands = detect_concepts(signals)
+    auth = next(c for c in cands if c.name == "Authentication")
+    paths = " ".join(s.file_rel_path for s in auth.signals)
+    assert "s3SigningDiagnostics" not in paths
+    assert "auth.spec.ts" in paths  # the real auth e2e spec is preferred
+
+
 # --- Codex blocker 3: Context Pack reasons must be truthful ------------------
 
 def test_cross_package_test_does_not_get_same_directory_reason():

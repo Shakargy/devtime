@@ -349,10 +349,15 @@ def _is_false_sense(slug: str, s: Signal) -> bool:
         # path segment on an upload/file route is not authentication.
         if s.kind == "route":
             return not _is_auth_route(hay)
-        # Weak kinds (test/config/dependency/doc) must EARN inclusion with a direct
-        # auth term. A test like s3SigningDiagnostics.test.ts has none -> dropped,
-        # so it cannot become headline Authentication evidence (Codex blocker 2).
-        return not any(t in hay for t in STRONG_AUTH_TERMS)
+        # Weak kinds (test/config/dependency/doc): judge by FILE PATH so a passing
+        # mention of "auth" in storage/signing code cannot leak in. An
+        # s3SigningDiagnostics.test.ts is storage/signing, not authentication.
+        path = s.file_rel_path.lower()
+        if any(d in path for d in AUTH_NEGATIVE_DOMAIN):
+            return True
+        has_auth_path = any(t in path for t in AUTH_POSITIVE_PATH_TERMS)
+        has_strong = any(t in hay for t in STRONG_AUTH_TERMS)
+        return not (has_auth_path or has_strong)
 
     if slug == "background_jobs":
         return _is_employment(hay)
@@ -378,6 +383,18 @@ def _is_false_sense(slug: str, s: Signal) -> bool:
 
     return False
 
+
+# For weak Authentication signals, the file path decides. Storage/signing/upload/
+# diagnostics files are not authentication, even if their content mentions "auth".
+AUTH_NEGATIVE_DOMAIN = (
+    "s3", "signing", "signed", "storage", "bucket", "minio", "cdn", "upload",
+    "diagnostic", "billing", "calendar", "webhook", "export", "avatar", "image",
+    "media", "trace", "permalink", "monitor", "analytics", "telemetry",
+)
+AUTH_POSITIVE_PATH_TERMS = (
+    "auth", "login", "logout", "signin", "signup", "oauth", "nextauth", "session",
+    "password", "mfa", "2fa", "/sso", "saml", "credential",
+)
 
 _AUTH_ROUTE_POSITIVE = (
     "/auth", "login", "logout", "signin", "sign-in", "signup", "sign-up", "oauth",

@@ -26,6 +26,20 @@ DOMAIN_TERMS = {
     "File Uploads": ("upload", "multipart", "file", "attachment", "storage"),
 }
 
+# Specific import tokens that prove a test references a concept's implementation,
+# so the import reason fires even when the implementation file itself was not
+# captured as evidence (Codex blocker 3: Plane bg_tasks).
+CONCEPT_IMPORT_HINTS = {
+    "Background Jobs": ("bgtask", "bgtasks", "bg_task", "celery", "sidekiq", "bullmq", "worker"),
+    "Billing Webhooks": ("stripe", "paypal", "braintree", "chargebee"),
+    "Authentication": ("nextauth", "next-auth", "passport"),
+    "Data Export": (),
+    "Admin Permissions": (),
+    "File Uploads": ("multer", "busboy", "uploadfile"),
+}
+
+_TEST_DIR_TOKENS = ("/tests/", "/test/", "/__tests__/", "/spec/", "/specs/")
+
 
 @dataclass
 class TestRec:
@@ -102,16 +116,30 @@ def _impl_modules(ci: ConceptIntelligence) -> set[str]:
     return mods
 
 
+def _impl_dirs_non_test(ci: ConceptIntelligence) -> set[str]:
+    """Directories of real (non-test) implementation evidence files."""
+    dirs: set[str] = set()
+    for e in ci.evidence:
+        if not e.path or e.signal.kind == "test":
+            continue
+        low = "/" + e.path.lower()
+        if any(t in low for t in _TEST_DIR_TOKENS):
+            continue  # a non-test file that still lives under a tests/ tree
+        dirs.add(posixpath.dirname(e.path))
+    return dirs
+
+
 def _rank_tests(ci: ConceptIntelligence) -> list[TestRec]:
     """Recommend a test ONLY when the relation is provable, with a true reason
-    (Codex blockers 3 & 4): an import relation, or a genuine same-directory relation.
-    Otherwise omit it — a missing recommendation beats a false reason."""
-    impl_dirs = {
-        posixpath.dirname(e.path)
-        for e in ci.evidence
-        if e.path and e.signal.kind != "test"
-    }
+    (Codex blockers 2 & 3):
+      1. import/reference to the implementation  (highest)
+      2. EXACT same directory as a real implementation file
+      otherwise omit — a missing recommendation beats a false reason.
+    "same directory" requires literally equal parent directories, never a shared
+    package/keyword/monorepo token."""
+    impl_dirs = _impl_dirs_non_test(ci)
     impl_modules = _impl_modules(ci)
+    hints = CONCEPT_IMPORT_HINTS.get(ci.concept.name, ())
 
     recs: list[TestRec] = []
     seen: set[str] = set()
@@ -122,14 +150,16 @@ def _rank_tests(ci: ConceptIntelligence) -> list[TestRec]:
         d = posixpath.dirname(e.path)
         imports = [str(i).lower() for i in e.signal.metadata.get("imports", [])]
 
-        imported = any(any(m in imp for m in impl_modules) for imp in imports)
+        imported = any(any(m in imp for m in impl_modules) for imp in imports) or any(
+            any(h in imp for h in hints) for imp in imports
+        )
         if imported:
             recs.append(TestRec(
                 e.path,
                 "Recommended because it imports or tests the implementation.",
                 4,
             ))
-        elif impl_dirs and d in impl_dirs:
+        elif d in impl_dirs:
             recs.append(TestRec(
                 e.path,
                 "Recommended because it is in the same directory as the implementation.",
