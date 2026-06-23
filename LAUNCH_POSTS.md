@@ -1,7 +1,10 @@
 # Launch Posts (drafts)
 
-Draft copy for the public launch. Honest, no hype. Pick/edit before posting. Replace
-`<link>` placeholders at launch.
+Draft copy for the public launch. Honest, no hype. Pick/edit before posting.
+
+Links:
+- Demo video (live): **https://youtu.be/1Hiu3Y9J_SI**
+- GitHub: **https://github.com/Shakargy/devtime** — *use only after the repo is public.*
 
 > Avoid: "revolutionary", "game-changing", "replaces developers", "AI understands your
 > repo", "fully autonomous", "perfect". DevTime requires no AI and makes no such claims.
@@ -15,11 +18,11 @@ Draft copy for the public launch. Honest, no hype. Pick/edit before posting. Rep
 >
 > No cloud. No telemetry. No code execution. No AI required.
 >
-> <link>
+> https://youtu.be/1Hiu3Y9J_SI
 
 Alt one-liner:
 > AI writes. EI remembers. DevTime is local-first repository memory from evidence —
-> no cloud, no telemetry, no code execution, no AI required. <link>
+> no cloud, no telemetry, no code execution, no AI required. https://youtu.be/1Hiu3Y9J_SI
 
 ## 2. LinkedIn
 
@@ -41,7 +44,7 @@ Alt one-liner:
 >
 > No cloud. No telemetry. No code execution. No AI required. Apache-2.0.
 >
-> Try it on one repo and tell me what it gets wrong: <link>
+> Try it on one repo and tell me what it gets wrong: https://youtu.be/1Hiu3Y9J_SI (GitHub link after the repo is public)
 
 ## 3. Hacker News / Reddit-style intro
 
@@ -69,7 +72,7 @@ Alt one-liner:
 > wrong outputs into regression fixtures. Feedback — especially "it got this wrong" —
 > is exactly what I'm looking for.
 >
-> Repo + 2-minute demo: <link>
+> Demo: https://youtu.be/1Hiu3Y9J_SI · GitHub: https://github.com/Shakargy/devtime (after public)
 
 ---
 
@@ -79,7 +82,7 @@ Alt one-liner:
 > CLI that helps a repo explain itself from evidence (no cloud, no telemetry, no code
 > execution, no AI). ~15 minutes:
 >
-> 1. Clone the repo: `<private-repo-link>`
+> 1. Clone the repo: `https://github.com/Shakargy/devtime` (private — request access)
 > 2. Follow **QUICKSTART.md** (install + `pytest`).
 > 3. Watch the 2-minute demo video.
 > 4. Run it on **one real repo** of yours: `dtc init && dtc scan && dtc concepts` then

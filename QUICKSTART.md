@@ -32,7 +32,7 @@ This installs the `dtc` command into the virtual environment.
 pytest
 ```
 
-Expected: all tests pass (77+ at v0.0.7).
+Expected: all tests pass (88 at v0.1.0).
 
 ## 5. Run the demo
 
@@ -123,7 +123,7 @@ A fresh-clone check was run on the current candidate:
 - **OS:** Windows 11 (Git Bash)
 - **Python:** 3.11.9
 - **Install:** `pip install -e ".[dev]"`
-- **Tests:** all passing (77+ at v0.0.7)
+- **Tests:** all passing (88 at v0.1.0)
 - **Demo:** `dtc init` / `dtc scan` / `dtc concepts` / `dtc explain "Billing Webhooks"`
   all produced the expected output from a clean `git clone`.
 

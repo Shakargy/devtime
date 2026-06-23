@@ -1,7 +1,7 @@
 # Demo Script — DevTime V0: Repository Memory From Evidence
 
 A 2–3 minute walkthrough. Every command is real and copy-pasteable, and every output
-block matches current v0.0.7 behavior (verified on `examples/demo-saas`). Run it from
+block matches current v0.1.0 behavior (verified on `examples/demo-saas`). Run it from
 inside the sample app, because DevTime scans the **current directory**.
 
 > Tone: this is **evidence-backed local memory**, not magic. Say: evidence,

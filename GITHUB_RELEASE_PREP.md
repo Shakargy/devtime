@@ -32,17 +32,19 @@ sqlite
 open-source
 ```
 
-## Repo metadata fields (TODO)
+## Repo metadata fields
 
 ```
-Website:    TODO
-Demo video: TODO — upload devtime-demo-v0.0.8.mp4 after the repo becomes public,
-            then add the public link to README.md (## Demo) and the release notes.
+Website:    TODO (optional)
+Demo video: https://youtu.be/1Hiu3Y9J_SI  (linked from README ## Demo)
 ```
 
-Demo assets (local, not in the repo):
-- Video: `devtime-demo-v0.0.8.mp4` (2:02, 1920×1080, silent/caption-driven)
-- Thumbnail: `devtime-demo-thumbnail-v0.0.8.png` (1920×1080)
+Release assets:
+- Demo video (YouTube): https://youtu.be/1Hiu3Y9J_SI
+- Thumbnail in repo: `assets/devtime-demo-thumbnail-v0.1.0.png` (1920×1080)
+- Final release notes: `RELEASE_NOTES_v0.1.0.md`
+- **Package version decision: `0.1.0`** for the public release (bumped on the
+  `v0.1.0-release-candidate` branch).
 
 ---
 
@@ -50,14 +52,14 @@ Demo assets (local, not in the repo):
 
 All must be true before flipping the repo to public. Check, don't assume.
 
-- [ ] Repo visibility still **private** until final approval
+- [ ] Repo visibility still **private** until final approval (flip is the explicit final manual step)
 - [x] Tests pass (88)
-- [x] Clean-clone install works (see CLEAN_INSTALL_CHECK.md)
-- [ ] Package version decision made (currently `0.0.7`; bump to `0.1.0` only at release)
+- [x] Clean-clone install works (see CLEAN_INSTALL_CHECK.md and the record below)
+- [x] Package version decision made — **`0.1.0`** (bumped on `v0.1.0-release-candidate`)
 - [ ] `v0.1.0` release tag **not** created until final approval
-- [ ] README has the public demo link (currently a placeholder)
-- [ ] Demo video uploaded somewhere public
-- [x] Thumbnail ready (`devtime-demo-thumbnail-v0.0.8.png`)
+- [x] README has the public demo link (https://youtu.be/1Hiu3Y9J_SI)
+- [x] Demo video uploaded publicly (YouTube)
+- [x] Thumbnail in repo (`assets/devtime-demo-thumbnail-v0.1.0.png`)
 - [x] LICENSE present (Apache-2.0)
 - [x] Limitations visible (LIMITATIONS.md, linked from README)
 - [x] Issue template present (`.github/ISSUE_TEMPLATE/devtime-got-this-wrong.yml`)
@@ -68,9 +70,23 @@ All must be true before flipping the repo to public. Check, don't assume.
 - [ ] GitHub description set (recommendation above)
 - [ ] GitHub topics set (recommendation above)
 - [ ] 5–10 reviewers completed, or final approval given
-- [ ] Final clean-clone test completed on the release commit
-- [ ] Release notes reviewed (RELEASE_NOTES_v0.1.0_DRAFT.md)
-- [ ] Launch post reviewed (LAUNCH_POSTS.md)
+- [x] Final clean-clone test completed on the release-candidate branch (record below)
+- [x] Release notes finalized (`RELEASE_NOTES_v0.1.0.md`)
+- [x] Launch post updated with demo link (`LAUNCH_POSTS.md`)
+
+### Final clean-clone test record
+
+| Field | Result |
+|-------|--------|
+| Date | 2026-06-23 |
+| OS | Windows 11 (Git Bash) |
+| Python | 3.11.9 |
+| Branch | `v0.1.0-release-candidate` |
+| Install command | `pip install -e ".[dev]"` |
+| Test result | **88 passed** |
+| Package version | **0.1.0** |
+| Demo repo smoke | `dtc init` / `scan` / `concepts` / `explain "Billing Webhooks"` → Score 58/100, missing-decision uncertainty (as documented) |
+| Issue found | none |
 
 ### Recommended release sequence (when approved)
 

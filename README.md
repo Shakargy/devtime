@@ -114,11 +114,9 @@ A full, copy-pasteable walkthrough is in **[DEMO_SCRIPT.md](DEMO_SCRIPT.md)**.
 
 ## Demo
 
-A 2-minute demo video is ready for public release.
+[![DevTime demo - Repository memory from evidence](assets/devtime-demo-thumbnail-v0.1.0.png)](https://youtu.be/1Hiu3Y9J_SI)
 
-TODO before public launch:
-- Upload `devtime-demo-v0.0.8.mp4`
-- Add the public video link here
+Watch the 2-minute demo: DevTime scans a repo locally, explains concepts from evidence, surfaces uncertainty, catches a risky diff, and shows how a corroborated decision improves understanding.
 
 ## Installation
 

@@ -1,7 +1,6 @@
 # DevTime v0.1.0 — Repository Memory From Evidence
 
-> **DRAFT.** This is a draft for the first public release. `v0.1.0` has **not** been
-> tagged. Versions/links are finalized at release time.
+The first public release of DevTime.
 
 ## 1. What is DevTime?
 
@@ -29,12 +28,12 @@ AI. It does not pretend to know things without evidence.
 ## 3. Core commands
 
 ```
-dtc init        Create local .devtime memory.
-dtc scan        Scan the current repository (no code execution, no network).
-dtc concepts    List detected concepts with confidence and Understanding Debt.
-dtc explain     Explain a concept: claims, evidence, confidence, uncertainty, score.
-dtc context     Create a governed Context Pack for agents or humans.
-dtc risk --diff Review a git diff for risky changes (advisory).
+dtc init         Create local .devtime memory.
+dtc scan         Scan the current repository (no code execution, no network).
+dtc concepts     List detected concepts with confidence and Understanding Debt.
+dtc explain      Explain a concept: claims, evidence, confidence, uncertainty, score.
+dtc context      Create a governed Context Pack for agents or humans.
+dtc risk --diff  Review a git diff for risky changes (advisory).
 dtc decision add Record a decision that can reduce uncertainty when corroborated.
 ```
 
@@ -52,9 +51,10 @@ dtc decision add Record a decision that can reduce uncertainty when corroborated
 
 ## 5. Demo
 
-A ~2-minute demo video walks through a real scan on the sample app.
+Watch the 2-minute demo: **https://youtu.be/1Hiu3Y9J_SI**
 
-*TODO at release:* upload the demo video and add the public link here.
+DevTime scans a repo locally, explains concepts from evidence, surfaces uncertainty,
+catches a risky diff, and shows how a corroborated decision improves understanding.
 
 ## 6. What changed during private validation
 
@@ -88,7 +88,7 @@ enterprise platform or a broad security review.
 Requires Python ≥ 3.11 and git.
 
 ```
-git clone <repo-url>
+git clone https://github.com/Shakargy/devtime.git
 cd devtime
 python -m venv .venv
 source .venv/bin/activate      # Windows: .venv\Scripts\activate
@@ -117,5 +117,5 @@ so they can't silently regress.
 
 ---
 
-Licensed under **Apache-2.0**. Local-first. Honest about uncertainty, honest about
-limits.
+Version **0.1.0** · Licensed under **Apache-2.0** · Local-first · Honest about
+uncertainty, honest about limits · **88 tests passing**.

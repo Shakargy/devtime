@@ -12,11 +12,14 @@ from devtime.intelligence.claims import build_concept_intelligence
 from devtime.scanner.extractors.base import Signal
 
 
-# --- P1 version ---------------------------------------------------------------
+# --- version ------------------------------------------------------------------
 
-def test_version_is_not_0_1_0():
-    assert devtime.__version__ != "0.1.0"
-    assert devtime.__version__.startswith("0.0.")
+def test_version_is_release_0_1_0():
+    # v0.1.0 release: package metadata and __version__ agree on the release version.
+    import importlib.metadata as m
+
+    assert devtime.__version__ == "0.1.0"
+    assert m.version("devtime") == "0.1.0"
 
 
 # --- P0 Authentication headline precision ------------------------------------
