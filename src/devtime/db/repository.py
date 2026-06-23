@@ -171,7 +171,7 @@ def add_decision(
 # Read / reconstruct
 # --------------------------------------------------------------------------- #
 
-# Behaviors a decision may claim that DevTime cannot take on faith — they must be
+# Behaviors a decision may claim that DevTime cannot take on faith - they must be
 # corroborated by scanned implementation evidence (Trust Repair v0.0.6).
 _DECISION_BEHAVIOR_TOKENS = {
     "retry": ("retry", "retries", "retrying"),
@@ -251,7 +251,7 @@ def _load_for_concept_row(conn: sqlite3.Connection, row: sqlite3.Row) -> Concept
         confidence=row["confidence"],
         signals=[e.signal for e in evidence],
     )
-    # Attach human decisions — but only CORROBORATED decisions count as evidence
+    # Attach human decisions - but only CORROBORATED decisions count as evidence
     # (Trust Repair v0.0.6). A decision that describes behavior the scanned code does
     # not show must not clear uncertainty or improve the score.
     impl_text = " ".join(

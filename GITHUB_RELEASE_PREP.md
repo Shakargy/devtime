@@ -1,7 +1,7 @@
 # GitHub Release Prep
 
 Recommendations for the GitHub repository's public-facing settings and the gate that
-must pass before the repo goes public. **Nothing here is applied automatically** — a
+must pass before the repo goes public. **Nothing here is applied automatically** - a
 human sets the GitHub fields and flips visibility.
 
 > The repository is still **PRIVATE**. Do not make it public until the Final Public
@@ -55,7 +55,7 @@ All must be true before flipping the repo to public. Check, don't assume.
 - [ ] Repo visibility still **private** until final approval (flip is the explicit final manual step)
 - [x] Tests pass (88)
 - [x] Clean-clone install works (see CLEAN_INSTALL_CHECK.md and the record below)
-- [x] Package version decision made — **`0.1.0`** (bumped on `v0.1.0-release-candidate`)
+- [x] Package version decision made - **`0.1.0`** (bumped on `v0.1.0-release-candidate`)
 - [ ] `v0.1.0` release tag **not** created until final approval
 - [x] README has the public demo link (https://youtu.be/1Hiu3Y9J_SI)
 - [x] Demo video uploaded publicly (YouTube)
@@ -69,7 +69,7 @@ All must be true before flipping the repo to public. Check, don't assume.
 - [x] No AI-authorship traces (project policy)
 - [ ] GitHub description set (recommendation above)
 - [ ] GitHub topics set (recommendation above)
-- [ ] 5–10 reviewers completed, or final approval given
+- [ ] 5-10 reviewers completed, or final approval given
 - [x] Final clean-clone test completed on the release-candidate branch (record below)
 - [x] Release notes finalized (`RELEASE_NOTES_v0.1.0.md`)
 - [x] Launch post updated with demo link (`LAUNCH_POSTS.md`)

@@ -15,16 +15,16 @@ require AI. It does not pretend to know things without evidence.
 
 ## Why this exists
 
-Git remembers *code*. It does not remember *understanding* — why a behavior exists,
+Git remembers *code*. It does not remember *understanding* - why a behavior exists,
 what evidence supports it, or what nobody has decided yet. As AI tools generate code
 faster than teams can review it, that missing understanding becomes the bottleneck.
 
 DevTime builds **evidence-backed repository memory**: a local layer that says what a
-repository can prove, and — just as importantly — what it cannot prove yet.
+repository can prove, and - just as importantly - what it cannot prove yet.
 
 ## Supported concepts (closed ontology)
 
-V0 detects **six** supported concept families — it does not discover arbitrary
+V0 detects **six** supported concept families - it does not discover arbitrary
 domain concepts yet:
 
 - Authentication
@@ -38,21 +38,21 @@ Anything outside these six is out of scope for V0. See [LIMITATIONS.md](LIMITATI
 
 ## What DevTime does
 
-- **Detects concepts** — the six supported families above — from routes, tests,
+- **Detects concepts** - the six supported families above - from routes, tests,
   configs, dependencies, and docs, with word-sense gates so a coincidental keyword
   (a job *title*, an avatar *URL*, a `session_id` trace) does not invent a concept.
-- **Explains from evidence** — every claim links to the files/signals behind it.
-- **Surfaces uncertainty** — when evidence is missing (e.g. no decision record), it
+- **Explains from evidence** - every claim links to the files/signals behind it.
+- **Surfaces uncertainty** - when evidence is missing (e.g. no decision record), it
   says so instead of guessing.
-- **Scores understanding** — an **Understanding Score** (higher = better) with an
+- **Scores understanding** - an **Understanding Score** (higher = better) with an
   **Understanding Debt** label (low/medium/high) and the causes shown.
-- **Warns about a narrow set of risky changes** — `dtc risk --diff` reviews a git
+- **Warns about a narrow set of risky changes** - `dtc risk --diff` reviews a git
   diff against local memory and flags *advisory* findings for the change classes it
   supports (e.g. JWT algorithm weakening, billing-webhook retry without dedupe tests).
   It reports explicit states: `review_failed`, `no_findings`,
   `unsupported_change_class` (a known-concept file changed but no rule covers it), and
   `finding`. "No findings" never means "could not inspect".
-- **Records decisions** — `dtc decision add` stores rationale locally, which reduces
+- **Records decisions** - `dtc decision add` stores rationale locally, which reduces
   uncertainty and improves understanding.
 
 ## What DevTime does not do
@@ -74,11 +74,11 @@ See **[LIMITATIONS.md](LIMITATIONS.md)** for the full, honest list.
 - **No code execution** during a scan.
 - Ignored directories are pruned *before* scanning; ignored files and secrets must
   never become evidence or claims.
-- Every claim must link to evidence — *no claim without evidence*.
+- Every claim must link to evidence - *no claim without evidence*.
 - Weak evidence produces **uncertainty**, not confidence.
 - *Usage is not decision*: that a dependency is used does not mean someone decided
   why.
-- Risk review is **advisory** by default — it does not block PRs.
+- Risk review is **advisory** by default - it does not block PRs.
 
 ## Quick demo
 
@@ -102,7 +102,7 @@ dtc explain "Billing Webhooks"
 The narrative:
 
 - **Before a decision:** Billing Webhooks has strong evidence (route, signature
-  verification, test) *and* uncertainty — no decision explains its key choices.
+  verification, test) *and* uncertainty - no decision explains its key choices.
   Understanding Score is `58/100`.
 - **Risk review:** changing retry behavior without updating duplicate-delivery tests
   is flagged **high severity**.
@@ -179,7 +179,7 @@ causes:
 ## Proof
 
 DevTime runs on `examples/demo-saas` and on real repositories. During Reality
-Validation it detected — and then learned from — real failures (Next.js App Router
+Validation it detected - and then learned from - real failures (Next.js App Router
 blindness, a false Billing Webhooks detection on a generic webhook system, a DB
 migration mis-counted as Background Jobs evidence, and more). Each failure became a
 fixture so it cannot silently regress.
@@ -206,8 +206,8 @@ currently strongest on TypeScript / Next.js / Express / FastAPI-style repositori
 that resemble its fixtures. False positives and false negatives are possible.
 Understanding Debt is a product signal, not an objective universal truth.
 
-Read the full list — including framework coverage, risk-review scope, and what is
-intentionally not built yet — in **[LIMITATIONS.md](LIMITATIONS.md)**.
+Read the full list - including framework coverage, risk-review scope, and what is
+intentionally not built yet - in **[LIMITATIONS.md](LIMITATIONS.md)**.
 
 ## Roadmap
 

@@ -1,4 +1,4 @@
-# Reality Validation — Summary
+# Reality Validation - Summary
 
 Goal: find where DevTime V0 is wrong on real repos, then convert failures into
 fixtures so it never regresses.

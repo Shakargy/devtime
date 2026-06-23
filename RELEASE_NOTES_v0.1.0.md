@@ -1,4 +1,4 @@
-# DevTime v0.1.0 — Repository Memory From Evidence
+# DevTime v0.1.0 - Repository Memory From Evidence
 
 The first public release of DevTime.
 
@@ -16,7 +16,7 @@ AI. It does not pretend to know things without evidence.
 
 - Local scan of a repository (no network, no code execution) into a local SQLite
   memory store in `.devtime/`.
-- Detection of **six** supported concept families (closed ontology — see below).
+- Detection of **six** supported concept families (closed ontology - see below).
 - Evidence-linked, strength-aware claims with explicit **uncertainty**.
 - An **Understanding Score** (higher = better) and an **Understanding Debt** label.
 - **Advisory, narrow** risk review of a git diff (e.g. JWT algorithm weakening;
@@ -47,7 +47,7 @@ dtc decision add Record a decision that can reduce uncertainty when corroborated
 - Ignored directories are pruned before scanning; ignored files and secrets are
   excluded from evidence by design.
 - Every claim links to evidence. Weak evidence produces uncertainty, not confidence.
-- Risk review is **advisory** — it does not block PRs.
+- Risk review is **advisory** - it does not block PRs.
 
 ## 5. Demo
 
@@ -111,7 +111,7 @@ and corroborated-decision steps).
 
 ## 10. Feedback wanted
 
-If DevTime gets something wrong on your repo, that's the most useful feedback — open a
+If DevTime gets something wrong on your repo, that's the most useful feedback - open a
 **"DevTime got this wrong"** issue (template included). Wrong outputs become fixtures
 so they can't silently regress.
 

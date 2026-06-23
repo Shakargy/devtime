@@ -1,7 +1,7 @@
-# DevTime — PROOF
+# DevTime - PROOF
 
 Evidence that DevTime V0 does what it claims, on a demo repo and on real
-repositories — plus an honest account of where it is still weak. Everything here is
+repositories - plus an honest account of where it is still weak. Everything here is
 local: AI off, cloud off, telemetry off, no code execution, no network.
 
 ## 1. Current version
@@ -11,10 +11,10 @@ local: AI off, cloud off, telemetry off, no code execution, no network.
   `v0.0.3-public-candidate` → `v0.0.4-private-review-candidate` →
   `v0.0.5-private-review-ready` → `v0.0.6-trust-repair` →
   `v0.0.7-evidence-precision` (this one).
-- Tests: **passing** (`pytest`) — unit, integration, and fixture suites (count grows
+- Tests: **passing** (`pytest`) - unit, integration, and fixture suites (count grows
   each precision patch; see the suite for the current number).
 
-### Trust Repair (v0.0.6) — from private reviewer feedback
+### Trust Repair (v0.0.6) - from private reviewer feedback
 
 Private reviewers ran DevTime on large real repos (Langfuse, Cal.com, Open WebUI,
 Plane, Twenty) and found trust-breaking output. v0.0.6 makes DevTime *more honest*,
@@ -43,16 +43,16 @@ not larger:
   render literally. Scan prints progress and a boundary report.
 
 > The Billing false-positive *class* is reduced and fixture-guarded, not declared
-> universally solved — heuristics can still err on unseen patterns.
+> universally solved - heuristics can still err on unseen patterns.
 
-### Evidence Precision (v0.0.7) — after the v0.0.6 re-review
+### Evidence Precision (v0.0.7) - after the v0.0.6 re-review
 
 Narrow precision patch (no new features); package version moved to `0.0.7` (still
 private; `0.1.0` reserved for public release):
 
 - **Billing Webhooks now needs a local payment provider.** Calendar subscriptions,
   cron cleanup, connector/credential webhooks, and generic triggers are negative
-  contexts — they do not become Billing Webhooks without local Stripe/PayPal/payment
+  contexts - they do not become Billing Webhooks without local Stripe/PayPal/payment
   evidence. (Cal.com-style false positives.)
 - **High-confidence Authentication requires direct auth evidence.** `session_id`
   traces, `NEXTAUTH_URL` permalink tests, and authorship/capitalization words are
@@ -71,14 +71,14 @@ sense-filters:
 
 - Billing evidence itself is sense-filtered: calendar/credential/connector/cron/
   generic-trigger webhook signals are dropped from Billing Webhooks unless a local
-  payment provider (Stripe/PayPal) is present — verified with the exact Cal.com paths
+  payment provider (Stripe/PayPal) is present - verified with the exact Cal.com paths
   (`api/cron/calendar-subscriptions`, `api/cron/webhookTriggers`,
   `api/webhook/app-credential`, `api/webhooks/calendar-subscription/[provider]`).
 - Authentication drops weak/unrelated signals (e.g. an `s3SigningDiagnostics.test.ts`)
   and routes that match only via a `[token]` path segment on a non-auth domain (e.g.
   `app-upload/[token]`), so headline evidence is direct auth only.
 - Context Pack recommends a test only when the relation is provable (import or true
-  same-directory) and **omits** it otherwise — no invented "same module"/"same
+  same-directory) and **omits** it otherwise - no invented "same module"/"same
   directory" reasons across packages.
 
 ## 2. What works
@@ -115,21 +115,21 @@ API Graveyard (FastAPI + TS), Snapilio (Next.js/SST), SaaSVoice (Next.js/SST).
 
 ## 5. Before / after examples
 
-**Snapilio — Authentication:** before `confidence: medium` (dependency/doc only);
+**Snapilio - Authentication:** before `confidence: medium` (dependency/doc only);
 after **`confidence: high`** with real `app/api/.../route.ts` route evidence.
 
-**API Graveyard — Billing Webhooks:** before, a generic webhook delivery system was
+**API Graveyard - Billing Webhooks:** before, a generic webhook delivery system was
 **mislabelled** Billing Webhooks; after the file-local evidence gate, it is **no
 longer detected** (its only billing association was an e2e spec path). Real billing
 webhooks (Snapilio PayPal, demo Stripe) are still correctly detected.
 
-**Demo — the decision loop:** `dtc explain "Billing Webhooks"` → Understanding Score
+**Demo - the decision loop:** `dtc explain "Billing Webhooks"` → Understanding Score
 `58/100` (debt medium) with uncertainty. After a **corroborated** `dtc decision add`
 ("Use Stripe for billing"), the uncertainty clears and the Understanding Score
 improves to **`79/100`** (debt low). An *uncorroborated* decision (e.g. claiming retry
 behavior the code lacks) leaves the uncertainty in place.
 
-**Demo — risk review:** with retry behavior changed and no duplicate-delivery test
+**Demo - risk review:** with retry behavior changed and no duplicate-delivery test
 touched, `dtc risk --diff` flags **high severity**: "Retry behavior changed without
 duplicate-delivery test changes."
 
@@ -157,12 +157,12 @@ identical privacy behavior (secrets under ignored paths are never visited).
 
 ## 8. Trust laws covered by tests
 
-- *No claim without evidence* — `tests/unit/test_claims.py`.
-- *Usage is not decision* — `tests/unit/test_claims.py`.
-- *Uncertainty is output* — scoring/claims tests assert missing-decision uncertainty.
-- *Ignored secrets never become evidence* — `tests/fixtures/test_privacy_fixtures.py`,
+- *No claim without evidence* - `tests/unit/test_claims.py`.
+- *Usage is not decision* - `tests/unit/test_claims.py`.
+- *Uncertainty is output* - scoring/claims tests assert missing-decision uncertainty.
+- *Ignored secrets never become evidence* - `tests/fixtures/test_privacy_fixtures.py`,
   `tests/unit/test_walker_prune.py`.
-- *Risk review fires on the right change* — `tests/integration/test_risk_review.py`.
+- *Risk review fires on the right change* - `tests/integration/test_risk_review.py`.
 
 ## 9. What DevTime still does not do
 

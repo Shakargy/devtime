@@ -14,7 +14,7 @@ _TEST_NAME_RE = re.compile(
     r"""(?:it|test|describe)\(\s*['"]([^'"]+)['"]"""  # JS/TS
     r"""|def\s+(test_\w+)"""  # pytest
 )
-# Imports a test references — used to attach tests to the implementation they cover
+# Imports a test references - used to attach tests to the implementation they cover
 # (Evidence Precision v0.0.7): a truthful "imports the implementation" reason.
 _IMPORT_RE = re.compile(
     r"""from\s+([\w.]+)\s+import|import\s+([\w.]+)"""  # python

@@ -75,24 +75,24 @@ label (`medium`).
 
 V0 detects six supported concept families (closed ontology): Authentication, Billing
 Webhooks, Background Jobs, Data Export, Admin Permissions, File Uploads. It does not
-discover arbitrary domain concepts yet — see [LIMITATIONS.md](LIMITATIONS.md).
+discover arbitrary domain concepts yet - see [LIMITATIONS.md](LIMITATIONS.md).
 
 `dtc explain "Authentication"` scores higher, because the demo includes a decision
 record (`docs/decisions/0001-use-jwt.md`).
 
 ## 7. Troubleshooting
 
-- **`dtc: command not found`** — your virtual environment is not active. Re-run the
+- **`dtc: command not found`** - your virtual environment is not active. Re-run the
   activate command from step 3, or call the module directly: `python -m devtime.cli ...`.
-- **`DevTime is not initialized`** — run `dtc init` in the directory you want to scan.
-- **`No concept found matching '...'`** — run `dtc concepts` to see the exact names
+- **`DevTime is not initialized`** - run `dtc init` in the directory you want to scan.
+- **`No concept found matching '...'`** - run `dtc concepts` to see the exact names
   (they are case-insensitive but must otherwise match).
-- **`risk --diff` shows no findings** — risk review needs a git diff in the current
+- **`risk --diff` shows no findings** - risk review needs a git diff in the current
   directory. See DEMO_SCRIPT.md for the prepared demo change.
 
 ## 8. Recording a decision (PowerShell-safe)
 
-`dtc decision add` takes inline options — pass `--title` and `--body` on one line
+`dtc decision add` takes inline options - pass `--title` and `--body` on one line
 (works in bash, PowerShell, and cmd):
 
 ```

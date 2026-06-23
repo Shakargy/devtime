@@ -123,11 +123,11 @@ def generate_claims_and_uncertainty(
     claims: list[Claim] = []
     uncertainties: list[Uncertainty] = []
 
-    # concept claim — strength-aware (never "is present" for weak evidence).
+    # concept claim - strength-aware (never "is present" for weak evidence).
     if evidence:
         claims.append(_concept_presence_claim(concept, evidence))
 
-    # behavior claim — active route handling.
+    # behavior claim - active route handling.
     routes = _has_strong_route(evidence)
     if routes:
         claims.append(
@@ -139,12 +139,12 @@ def generate_claims_and_uncertainty(
             )
         )
 
-    # usage claim — JWT, purpose-aware (usage is not decision).
+    # usage claim - JWT, purpose-aware (usage is not decision).
     jwt_usage = _has(evidence, "token_usage")
     if jwt_usage:
         claims.append(_jwt_claim(concept.name, jwt_usage))
 
-    # behavior claim — webhook signature verification.
+    # behavior claim - webhook signature verification.
     sig = _has(evidence, "webhook_signature_verification")
     if sig:
         claims.append(
@@ -156,7 +156,7 @@ def generate_claims_and_uncertainty(
             )
         )
 
-    # dependency-only presence is weak evidence — never a behavior claim.
+    # dependency-only presence is weak evidence - never a behavior claim.
     deps = _has(evidence, "dependency")
     if deps and not routes and not sig:
         claims.append(

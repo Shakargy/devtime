@@ -76,20 +76,20 @@ public release gate.**
 - [x] Risk-diff demo fires (high finding) and reverts cleanly
 - [x] Decision loop is truthful (corroborated improves; uncorroborated stays flagged)
 - [x] `git status` is clean after reset/revert (verified)
-- [x] Demo duration fits 2–3 minutes (~2m40s)
-- [ ] 2–3 minute demo video recorded *(pending — human)*
+- [x] Demo duration fits 2-3 minutes (~2m40s)
+- [ ] 2-3 minute demo video recorded *(pending - human)*
 
 ## 7. Packaging
 
 - [x] `pyproject.toml` is correct (`requires-python = ">=3.11"`, `dtc` entry point)
 - [x] Install command verified: `pip install -e ".[dev]"`
-- [ ] (Optional later) publish to PyPI — not required for private reviewers
+- [ ] (Optional later) publish to PyPI - not required for private reviewers
 
 ## 8. GitHub readiness
 
 - [x] README.md, QUICKSTART.md, PROOF.md, LIMITATIONS.md, DEMO_SCRIPT.md, RELEASE_CHECKLIST.md present
 - [x] `.gitignore`, `.gitattributes`, CI workflows present
-- [x] **LICENSE chosen** — Apache-2.0 (`LICENSE`, declared in `pyproject.toml`)
+- [x] **LICENSE chosen** - Apache-2.0 (`LICENSE`, declared in `pyproject.toml`)
 - [ ] Repository description / topics set on GitHub *(human)*
 
 ## 9. Public release gate (all must be true)
@@ -97,7 +97,7 @@ public release gate.**
 - [ ] A stranger can install and run the demo in under 10 minutes
 - [x] Known limitations are visible (LIMITATIONS.md, linked from README)
 - [ ] Demo video recorded
-- [ ] First 5–10 private reviewers have tested it
+- [ ] First 5-10 private reviewers have tested it
 - [ ] No major confusion reported about the README
 - [x] LICENSE chosen (Apache-2.0)
 - [ ] **Human approves flipping the repo to public**
@@ -111,5 +111,5 @@ public release gate.**
 
 ---
 
-**Status:** ready for **private reviewers**. Not yet ready for **public** — remaining
+**Status:** ready for **private reviewers**. Not yet ready for **public** - remaining
 blockers: a recorded demo video and reviewer feedback (LICENSE is now Apache-2.0).

@@ -1,4 +1,4 @@
-"""Placeholder for a local model provider (e.g. Ollama) — disabled in V0."""
+"""Placeholder for a local model provider (e.g. Ollama) - disabled in V0."""
 
 from __future__ import annotations
 

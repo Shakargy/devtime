@@ -80,13 +80,13 @@ ANCHOR_KINDS = {
 
 # Tokens that justify naming a concept "Billing Webhooks". Reality Hardening
 # (v0.0.2): billing evidence must be *file-local* to webhook evidence. Trust Repair
-# (v0.0.6): a bare "subscription" is NOT billing (calendar subscriptions, etc.) —
+# (v0.0.6): a bare "subscription" is NOT billing (calendar subscriptions, etc.) -
 # require a payment provider or an explicit billing/payment term.
 BILLING_PROVIDER_TOKENS = (
     "stripe", "paypal", "braintree", "chargebee", "lemonsqueezy", "paddle", "razorpay",
 )
 # Explicit payment/billing terms (Evidence Precision v0.0.7). "subscription" and
-# "customer" alone are NOT here — they appear in calendar/CRM contexts too.
+# "customer" alone are NOT here - they appear in calendar/CRM contexts too.
 BILLING_TERM_TOKENS = (
     "billing", "invoice", "invoices", "checkout", "payment", "payments",
     "charge", "charges", "customer.subscription",
@@ -217,7 +217,7 @@ def _has_concept_anchor(slug: str, matched: list[Signal]) -> bool:
     """Require a concept-appropriate behavior anchor (Trust Repair v0.0.6).
 
     Word-sense protection: a concept is only emitted when at least one signal
-    actually demonstrates that concept's behavior — not a coincidental keyword
+    actually demonstrates that concept's behavior - not a coincidental keyword
     (job *title*, avatar *URL*, *session_id* trace, model *download*, etc.).
     """
     kinds = {s.kind for s in matched}
@@ -345,7 +345,7 @@ def _is_false_sense(slug: str, s: Signal) -> bool:
         # Real auth behavior kinds are headline evidence and are never dropped.
         if s.kind in ("auth_dependency", "middleware", "token_usage"):
             return False
-        # A route is auth evidence only if it is genuinely an auth route — a `[token]`
+        # A route is auth evidence only if it is genuinely an auth route - a `[token]`
         # path segment on an upload/file route is not authentication.
         if s.kind == "route":
             return not _is_auth_route(hay)
@@ -437,7 +437,7 @@ def detect_concepts(signals: list[Signal]) -> list[ConceptCandidate]:
             continue
 
         # Gate 2: "Billing" Webhooks needs billing evidence local to webhook
-        # evidence. Only meaningful signals count — an e2e spec under a path like
+        # evidence. Only meaningful signals count - an e2e spec under a path like
         # tests-e2e/specs/billing.e2e.spec.ts must not satisfy the billing gate.
         if not _passes_billing_gate(slug, meaningful):
             continue

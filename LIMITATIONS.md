@@ -19,7 +19,7 @@ do. Read this before trusting any single output.
 - There is **no UI**. DevTime is a command-line tool.
 - **Understanding Debt is a product signal, not an objective universal truth.** It is
   a useful, explainable heuristic for "how well can this concept be explained from
-  evidence?" — not a grade of code quality.
+  evidence?" - not a grade of code quality.
 
 ## 2. Accuracy limitations
 
@@ -47,8 +47,8 @@ do. Read this before trusting any single output.
   be fine.
 - Risk findings are keyed to a **narrow** set of known change classes (e.g. JWT
   algorithm weakening; retry/idempotency on billing webhooks). Most changes to a known
-  concept return **`unsupported_change_class`** — meaning "a tracked file changed but
-  V0 has no rule for this change; review it manually" — not a clean bill of health.
+  concept return **`unsupported_change_class`** - meaning "a tracked file changed but
+  V0 has no rule for this change; review it manually" - not a clean bill of health.
 - The result states are explicit: `review_failed`, `no_findings`,
   `unsupported_change_class`, `finding`. A git failure is `review_failed`, never
   `no_findings`.
@@ -75,7 +75,7 @@ do. Read this before trusting any single output.
 - **Very large repositories can take much longer.** Private reviewers saw scans of
   tens of seconds to several minutes on large monorepos (tens of thousands of files).
   `dtc scan` prints a local progress heartbeat and a boundary report (files scanned,
-  pruned directories, skipped files, duration); this is local only — no telemetry.
+  pruned directories, skipped files, duration); this is local only - no telemetry.
 - Detection is single-pass and in-process; there is no incremental/cached scan yet.
 
 ## 8. What is intentionally not built yet

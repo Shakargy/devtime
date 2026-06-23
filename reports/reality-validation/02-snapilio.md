@@ -1,4 +1,4 @@
-# Reality Validation — Snapilio
+# Reality Validation - Snapilio
 
 Repo: Snapilio (local, Next.js App Router + SST, TS)
 Commands run: `dtc init`, `dtc scan`, `dtc concepts`, `dtc explain` (x6)
@@ -7,8 +7,8 @@ Signals extracted: 649
 Concepts detected: Authentication, Admin Permissions, Billing Webhooks, File Uploads, Data Export (5)
 
 Best output:
-- **Admin Permissions** — plausible. Evidence `app/admin/layout.tsx`, `lib/actions/admin.ts`, `app/admin/coupons/page.tsx`. Reasonable concept from path + action clustering. Still weak (no behavior/route), honest debt (high).
-- **Billing Webhooks** naming is actually right here: `app/api/paypal/webhook/route.ts` is a real billing webhook — but see below, it was detected only as weak "dependency".
+- **Admin Permissions** - plausible. Evidence `app/admin/layout.tsx`, `lib/actions/admin.ts`, `app/admin/coupons/page.tsx`. Reasonable concept from path + action clustering. Still weak (no behavior/route), honest debt (high).
+- **Billing Webhooks** naming is actually right here: `app/api/paypal/webhook/route.ts` is a real billing webhook - but see below, it was detected only as weak "dependency".
 
 Worst output:
 - **Every concept degraded to "has related dependencies present"** because no routes were detected. Snapilio is Next.js App Router (file-based `route.ts` with `export async function POST/GET`). The route extractor only understands Express/FastAPI, so it found zero routes in a repo full of API routes.
@@ -20,7 +20,7 @@ Missing concept:
 - No concept is badly missing, but all are under-evidenced.
 
 Bad evidence:
-- **Double-slash path bug**: evidence shows `app/api/g//download-all/route.ts` and `app/api/app-upload//albums/route.ts` — a `//` artifact in displayed paths.
+- **Double-slash path bug**: evidence shows `app/api/g//download-all/route.ts` and `app/api/app-upload//albums/route.ts` - a `//` artifact in displayed paths.
 - Cross-contamination: `lib/actions/coupons.ts` cited as **Authentication** evidence (coupons is not auth; likely matched a `session` import).
 
 Missing uncertainty:
@@ -36,12 +36,12 @@ Risk review usefulness:
 - Not exercised (no relevant diff).
 
 New fixture needed:
-5. `nextjs-app-router-routes` — `app/api/**/route.ts` with `export async function GET/POST/...` must produce route signals (path derived from directory).
-6. `evidence-path-no-double-slash` — displayed/stored evidence paths must be normalized (no `//`).
-7. `paypal-webhook-is-billing` — a PayPal/Stripe webhook route should be Billing Webhooks with route+behavior evidence, not weak dependency-only.
+5. `nextjs-app-router-routes` - `app/api/**/route.ts` with `export async function GET/POST/...` must produce route signals (path derived from directory).
+6. `evidence-path-no-double-slash` - displayed/stored evidence paths must be normalized (no `//`).
+7. `paypal-webhook-is-billing` - a PayPal/Stripe webhook route should be Billing Webhooks with route+behavior evidence, not weak dependency-only.
 
 Fix priority:
-- P0: Next.js route detection (#5) — affects two of three real repos.
+- P0: Next.js route detection (#5) - affects two of three real repos.
 - P1: path normalization (#6).
 
 Notes:
