@@ -29,6 +29,8 @@ source .venv-wheel-test/bin/activate
 pip install dist/*.whl
 dtc --help
 python -c "import importlib.metadata as m; print(m.version('devtime-ei'))"
+# Verify the bundled demo resource ships and works from the wheel:
+dtc demo init && (cd devtime-demo-saas && dtc init && dtc scan && dtc concepts)
 ```
 
 Windows PowerShell:
@@ -39,6 +41,7 @@ python -m venv .venv-wheel-test
 pip install dist/*.whl
 dtc --help
 python -c "import importlib.metadata as m; print(m.version('devtime-ei'))"
+dtc demo init; cd devtime-demo-saas; dtc init; dtc scan; dtc concepts; cd ..
 ```
 
 ## TestPyPI upload (only after the checks above pass)
