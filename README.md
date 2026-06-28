@@ -62,27 +62,36 @@ steps) is in **[DEMO_SCRIPT.md](DEMO_SCRIPT.md)**.
 
 ## Why this exists
 
-Git remembers code. It does not remember understanding. It does not tell you why a
-behavior exists, what evidence supports it, or what nobody has decided yet. As AI
-tools generate code faster than teams can review it, that missing understanding
-becomes the bottleneck.
+Git records what changed, but it does not preserve the reasoning behind those
+changes. When you return to a repository—or review one you did not write—you often
+have to reconstruct why a behavior exists, what evidence supports it, and what is
+still uncertain.
 
-DevTime builds evidence-backed repository memory: a local layer that says what a
-repository can prove, and - just as importantly - what it cannot prove yet.
+DevTime builds evidence-backed repository memory: a local layer that helps a
+codebase explain itself from code, tests, configs, routes, and recorded decisions.
+It shows what the repository can support with evidence—and, just as importantly,
+what it cannot support yet.
 
 ## Who it is for
 
-DevTime is for developers reviewing unfamiliar code, teams using AI coding tools, and
-maintainers who want repository understanding to be backed by evidence instead of
-generated summaries.
+DevTime is for people who need to understand a repository from evidence rather than
+memory.
 
-It is useful when you want to ask:
+It is especially useful if you:
 
-- where is authentication actually implemented?
-- what files prove that billing webhooks exist?
-- what is still uncertain?
-- did this diff touch a risky concept?
-- is there a decision explaining this behavior?
+- are onboarding to an unfamiliar codebase and need to understand how a feature is implemented;
+- are reviewing a pull request and want to see what evidence supports a behavior;
+- are returning to a project after weeks or months and cannot remember why something exists;
+- maintain a long-lived project where design decisions are easily lost;
+- want repository understanding to be backed by code and recorded decisions instead of generated summaries.
+
+Questions DevTime helps answer include:
+
+- Where is authentication actually implemented?
+- What files prove that Billing Webhooks exist?
+- What is still uncertain?
+- Did this diff touch a risky concept?
+- Is there a decision explaining this behavior?
 
 ## What DevTime does
 
