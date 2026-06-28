@@ -169,11 +169,17 @@ python -m venv .venv
 pip install -e ".[dev]"
 ```
 
-Planned PyPI install (after the package is published and verified):
+Or install from PyPI (the command stays `dtc`):
 
 ```bash
-pipx install devtime
+pipx install devtime-ei
 ```
+
+```bash
+pip install devtime-ei
+```
+
+The PyPI package is named `devtime-ei`; the command it installs is `dtc`.
 
 ## Example output
 
