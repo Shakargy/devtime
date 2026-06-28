@@ -1,14 +1,31 @@
 [project]
-name = "devtime"
+name = "devtime-ei"
 version = "0.1.0"
-description = "Local-first Engineering Intelligence for repository memory"
+description = "Local-first Engineering Intelligence for software repositories"
+readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
+authors = [{ name = "Aviad Shakargi", email = "aviad94@gmail.com" }]
+maintainers = [{ name = "Aviad Shakargi", email = "aviad94@gmail.com" }]
+keywords = [
+    "devtools",
+    "cli",
+    "static-analysis",
+    "repository-analysis",
+    "engineering-intelligence",
+    "local-first",
+]
 classifiers = [
-    "License :: OSI Approved :: Apache Software License",
-    "Programming Language :: Python :: 3",
+    "Development Status :: 3 - Alpha",
     "Environment :: Console",
     "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Utilities",
 ]
 dependencies = [
     "typer>=0.12",
@@ -24,6 +41,13 @@ dev = [
     "pytest>=8.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/Shakargy/devtime"
+Repository = "https://github.com/Shakargy/devtime"
+Issues = "https://github.com/Shakargy/devtime/issues"
+"Release Notes" = "https://github.com/Shakargy/devtime/releases/tag/v0.1.0"
+Demo = "https://youtu.be/1Hiu3Y9J_SI"
+
 [project.scripts]
 dtc = "devtime.cli:app"
 
@@ -33,6 +57,10 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# Non-Python runtime files that ship inside the package (read at runtime).
+[tool.setuptools.package-data]
+devtime = ["db/*.sql", "assets/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
