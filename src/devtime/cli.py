@@ -24,9 +24,13 @@ console = Console()
 claim_app = typer.Typer(help="Inspect and govern claims.")
 decision_app = typer.Typer(help="Record human decisions.")
 mcp_app = typer.Typer(help="Local read-only MCP server.")
+demo_app = typer.Typer(
+    help="Create a local copy of the bundled demo repository.", no_args_is_help=True
+)
 app.add_typer(claim_app, name="claim")
 app.add_typer(decision_app, name="decision")
 app.add_typer(mcp_app, name="mcp")
+app.add_typer(demo_app, name="demo")
 
 
 # --------------------------------------------------------------------------- #
@@ -41,6 +45,37 @@ def init() -> None:
     init_repo()
     console.print("[green]DevTime initialized.[/green] Local memory at .devtime/devtime.sqlite")
     console.print("AI disabled. Cloud disabled. Telemetry off. MCP read-only.")
+
+
+@demo_app.command("init")
+def demo_init(
+    force: bool = typer.Option(
+        False, "--force", help="Replace devtime-demo-saas if it already exists."
+    ),
+) -> None:
+    """Copy the bundled demo repository into ./devtime-demo-saas (static files only)."""
+    from devtime.demo import DEMO_DIR_NAME, DemoExistsError, create_demo
+
+    try:
+        create_demo(Path.cwd(), force=force)
+    except DemoExistsError as exc:
+        console.print(
+            f"[yellow]{DEMO_DIR_NAME}/ already exists[/yellow] at {exc.path}."
+        )
+        console.print(
+            "Use [bold]dtc demo init --force[/bold] to replace it, "
+            "or remove the directory first."
+        )
+        raise typer.Exit(code=1)
+
+    console.print(f"[green]Demo repository created[/green] at ./{DEMO_DIR_NAME}")
+    console.print("")
+    console.print("Next:")
+    console.print(f"  cd {DEMO_DIR_NAME}")
+    console.print("  dtc init")
+    console.print("  dtc scan")
+    console.print("  dtc concepts")
+    console.print('  dtc explain "Billing Webhooks"')
 
 
 @app.command()

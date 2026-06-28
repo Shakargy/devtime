@@ -59,8 +59,15 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 # Non-Python runtime files that ship inside the package (read at runtime).
+# The demo-saas resource is copied out by `dtc demo init`; the leading-dot
+# .devtimeignore is listed explicitly because glob `*` does not match dotfiles.
 [tool.setuptools.package-data]
-devtime = ["db/*.sql", "assets/*"]
+devtime = [
+    "db/*.sql",
+    "assets/*",
+    "resources/demo-saas/**/*",
+    "resources/demo-saas/.devtimeignore",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -8,38 +8,46 @@ Get DevTime running and see the proof in a few minutes.
 - **git**
 - A terminal. Works on Windows, macOS, and Linux.
 
-## 2. Clone
+## 2. Install (recommended: pipx)
+
+```bash
+pipx install devtime-ei
+```
+
+The PyPI distribution is `devtime-ei`. The Python package remains `devtime`, and the
+CLI command remains `dtc`. [pipx](https://pipx.pypa.io/) puts `dtc` on your PATH in an
+isolated environment. (Plain `pip install devtime-ei` also works.)
+
+### From source (alternative)
 
 ```bash
 git clone https://github.com/Shakargy/devtime.git
 cd devtime
-```
-
-## 3. Install
-
-```bash
 python -m venv .venv
 source .venv/bin/activate          # Windows (PowerShell): .venv\Scripts\Activate.ps1
                                    # Windows (Git Bash):   source .venv/Scripts/activate
 pip install -e ".[dev]"
+pytest                             # optional: all tests pass (97 at v0.1.0)
 ```
 
-This installs the `dtc` command into the virtual environment.
-
-## 4. Run tests
+## 3. Create the demo repo
 
 ```bash
-pytest
+dtc demo init
+cd devtime-demo-saas
 ```
 
-Expected: all tests pass (88 at v0.1.0).
+`dtc demo init` copies a small static example repo into `./devtime-demo-saas` so you
+can try DevTime without cloning this repository. It only copies files: the scan is
+local, with no cloud, no telemetry, and no code execution.
 
-## 5. Run the demo
+(From-source users can instead `cd examples/demo-saas`.)
 
-DevTime scans the **current directory**, so run the demo from inside the sample app:
+## 4. Run the demo
+
+DevTime scans the **current directory**, so run these from inside the demo repo:
 
 ```bash
-cd examples/demo-saas
 dtc init
 dtc scan
 dtc concepts
@@ -123,7 +131,7 @@ A fresh-clone check was run on the current candidate:
 - **OS:** Windows 11 (Git Bash)
 - **Python:** 3.11.9
 - **Install:** `pip install -e ".[dev]"`
-- **Tests:** all passing (88 at v0.1.0)
+- **Tests:** all passing (97 at v0.1.0)
 - **Demo:** `dtc init` / `dtc scan` / `dtc concepts` / `dtc explain "Billing Webhooks"`
   all produced the expected output from a clean `git clone`.
 

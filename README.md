@@ -21,6 +21,22 @@ decision improves understanding.
 ## Try DevTime in 60 seconds
 
 ```bash
+pipx install devtime-ei
+dtc demo init
+cd devtime-demo-saas
+dtc init
+dtc scan
+dtc concepts
+dtc explain "Billing Webhooks"
+```
+
+The PyPI distribution is `devtime-ei`. The Python package remains `devtime`, and the
+CLI command remains `dtc`. `dtc demo init` copies a small static example repo into
+`./devtime-demo-saas` so you can try DevTime without cloning this repository.
+
+### From source
+
+```bash
 git clone https://github.com/Shakargy/devtime.git
 cd devtime
 python -m venv .venv
@@ -158,7 +174,24 @@ step-by-step first run and troubleshooting.
 
 ## Installation
 
-Recommended source install for now:
+Recommended: install from PyPI with [pipx](https://pipx.pypa.io/) so the `dtc`
+command is available on your PATH in an isolated environment:
+
+```bash
+pipx install devtime-ei
+```
+
+Or with pip:
+
+```bash
+pip install devtime-ei
+```
+
+The PyPI distribution is `devtime-ei`. The Python package remains `devtime`, and the
+CLI command remains `dtc`. After installing, run `dtc demo init` to create a local
+example repo to try it on.
+
+### From source
 
 ```bash
 git clone https://github.com/Shakargy/devtime.git
@@ -177,18 +210,6 @@ python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
 ```
-
-Or install from PyPI (the command stays `dtc`):
-
-```bash
-pipx install devtime-ei
-```
-
-```bash
-pip install devtime-ei
-```
-
-The PyPI package is named `devtime-ei`; the command it installs is `dtc`.
 
 ## Example output
 
