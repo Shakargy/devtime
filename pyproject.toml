@@ -1,6 +1,6 @@
 [project]
 name = "devtime-ei"
-version = "0.1.0"
+version = "0.1.1"
 description = "Local-first Engineering Intelligence for software repositories"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -45,7 +45,7 @@ dev = [
 Homepage = "https://github.com/Shakargy/devtime"
 Repository = "https://github.com/Shakargy/devtime"
 Issues = "https://github.com/Shakargy/devtime/issues"
-"Release Notes" = "https://github.com/Shakargy/devtime/releases/tag/v0.1.0"
+"Release Notes" = "https://github.com/Shakargy/devtime/releases/tag/v0.1.1"
 Demo = "https://youtu.be/1Hiu3Y9J_SI"
 
 [project.scripts]
