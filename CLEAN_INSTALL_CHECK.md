@@ -16,7 +16,7 @@ python -m venv .venv
 source .venv/Scripts/activate        # Windows Git Bash; use .venv/bin/activate on macOS/Linux
 
 pip install -e ".[dev]"
-pytest                               # expect: all tests pass (77+)
+pytest                               # expect: all tests pass (88 tests)
 
 cd examples/demo-saas
 dtc init
@@ -37,7 +37,7 @@ To exercise the advisory risk review, follow the prepared diff in
 | OS | Windows 11 (Git Bash) |
 | Python | 3.11.9 |
 | Install command | `pip install -e ".[dev]"` |
-| Test result | **all passed (77+)** |
+| Test result | **88 passed** |
 | `dtc` on PATH | yes (inside the activated venv) |
 | Demo result | scan / concepts / explain produced expected output |
 | Issue found | `dtc risk --diff` reported no findings when the scan root is a subdirectory of the git repo (diff paths were repo-relative, evidence paths scan-root-relative) |

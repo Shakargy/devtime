@@ -2,30 +2,101 @@
 
 **Local-first Engineering Intelligence for software repositories.**
 
-DevTime helps a repository explain itself from evidence. It scans code, tests,
-configs, routes, and decisions to identify the concepts inside a codebase, show the
-evidence behind them, surface uncertainty, and warn about risky changes.
+DevTime helps a codebase explain itself from evidence.
 
-It does not execute your code. It does not send your code anywhere. It does not
-require AI. It does not pretend to know things without evidence.
+It scans code, tests, configs, routes, and decisions to identify supported software
+concepts, link claims to files, surface uncertainty, and warn about a narrow set of
+risky changes.
 
 > No cloud. No telemetry. No code execution. No AI required.
 
+[![DevTime demo - Repository memory from evidence](assets/devtime-demo-thumbnail-v0.1.0.png)](https://youtu.be/1Hiu3Y9J_SI)
+
+Watch the 2-minute demo: DevTime scans a repo locally, explains concepts from
+evidence, surfaces uncertainty, catches a risky diff, and shows how a corroborated
+decision improves understanding.
+
 ---
+
+## Try DevTime in 60 seconds
+
+```bash
+git clone https://github.com/Shakargy/devtime.git
+cd devtime
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+cd examples/demo-saas
+dtc init
+dtc scan
+dtc concepts
+dtc explain "Billing Webhooks"
+```
+
+On Windows PowerShell:
+
+```powershell
+git clone https://github.com/Shakargy/devtime.git
+cd devtime
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -e ".[dev]"
+cd examples/demo-saas
+dtc init
+dtc scan
+dtc concepts
+dtc explain "Billing Webhooks"
+```
+
+You should see Billing Webhooks explained from evidence, including supported claims,
+file references, uncertainty, Understanding Score, and Understanding Debt.
+
+To test risk review, make a local change first, then run:
+
+```bash
+dtc risk --diff
+```
+
+A full, copy-pasteable walkthrough (including the risk-diff and corroborated-decision
+steps) is in **[DEMO_SCRIPT.md](DEMO_SCRIPT.md)**.
 
 ## Why this exists
 
-Git remembers *code*. It does not remember *understanding* - why a behavior exists,
-what evidence supports it, or what nobody has decided yet. As AI tools generate code
-faster than teams can review it, that missing understanding becomes the bottleneck.
+Git remembers code. It does not remember understanding. It does not tell you why a
+behavior exists, what evidence supports it, or what nobody has decided yet. As AI
+tools generate code faster than teams can review it, that missing understanding
+becomes the bottleneck.
 
-DevTime builds **evidence-backed repository memory**: a local layer that says what a
+DevTime builds evidence-backed repository memory: a local layer that says what a
 repository can prove, and - just as importantly - what it cannot prove yet.
 
-## Supported concepts (closed ontology)
+## Who it is for
 
-V0 detects **six** supported concept families - it does not discover arbitrary
-domain concepts yet:
+DevTime is for developers reviewing unfamiliar code, teams using AI coding tools, and
+maintainers who want repository understanding to be backed by evidence instead of
+generated summaries.
+
+It is useful when you want to ask:
+
+- where is authentication actually implemented?
+- what files prove that billing webhooks exist?
+- what is still uncertain?
+- did this diff touch a risky concept?
+- is there a decision explaining this behavior?
+
+## What DevTime does
+
+- Detects concepts from routes, tests, configs, dependencies, and docs.
+- Explains from evidence by linking claims to files and signals.
+- Surfaces uncertainty when evidence is missing or weak.
+- Scores understanding with an Understanding Score and Understanding Debt label.
+- Reviews narrow risky diffs with advisory findings from local memory.
+- Records decisions locally so rationale can reduce uncertainty when corroborated by code.
+
+## Supported concepts
+
+V0 detects six supported concept families. It does not discover arbitrary domain
+concepts yet:
 
 - Authentication
 - Billing Webhooks
@@ -35,25 +106,6 @@ domain concepts yet:
 - File Uploads
 
 Anything outside these six is out of scope for V0. See [LIMITATIONS.md](LIMITATIONS.md).
-
-## What DevTime does
-
-- **Detects concepts** - the six supported families above - from routes, tests,
-  configs, dependencies, and docs, with word-sense gates so a coincidental keyword
-  (a job *title*, an avatar *URL*, a `session_id` trace) does not invent a concept.
-- **Explains from evidence** - every claim links to the files/signals behind it.
-- **Surfaces uncertainty** - when evidence is missing (e.g. no decision record), it
-  says so instead of guessing.
-- **Scores understanding** - an **Understanding Score** (higher = better) with an
-  **Understanding Debt** label (low/medium/high) and the causes shown.
-- **Warns about a narrow set of risky changes** - `dtc risk --diff` reviews a git
-  diff against local memory and flags *advisory* findings for the change classes it
-  supports (e.g. JWT algorithm weakening, billing-webhook retry without dedupe tests).
-  It reports explicit states: `review_failed`, `no_findings`,
-  `unsupported_change_class` (a known-concept file changed but no rule covers it), and
-  `finding`. "No findings" never means "could not inspect".
-- **Records decisions** - `dtc decision add` stores rationale locally, which reduces
-  uncertainty and improves understanding.
 
 ## What DevTime does not do
 
@@ -65,8 +117,6 @@ Anything outside these six is out of scope for V0. See [LIMITATIONS.md](LIMITATI
 - It is **not** a documentation generator, a static analyzer, an observability tool,
   a productivity tracker, or an AI coding agent.
 
-See **[LIMITATIONS.md](LIMITATIONS.md)** for the full, honest list.
-
 ## Trust model
 
 - DevTime stores local repository memory in `.devtime/` (a local SQLite database).
@@ -76,63 +126,8 @@ See **[LIMITATIONS.md](LIMITATIONS.md)** for the full, honest list.
   never become evidence or claims.
 - Every claim must link to evidence - *no claim without evidence*.
 - Weak evidence produces **uncertainty**, not confidence.
-- *Usage is not decision*: that a dependency is used does not mean someone decided
-  why.
+- *Usage is not decision*: that a dependency is used does not mean someone decided why.
 - Risk review is **advisory** by default - it does not block PRs.
-
-## Quick demo
-
-DevTime scans the **current directory**, so the demo runs from inside the demo app.
-
-```bash
-cd examples/demo-saas
-dtc init
-dtc scan
-dtc concepts
-dtc explain "Billing Webhooks"
-# ...make a change, then:
-dtc risk --diff
-# A decision only clears uncertainty when the code backs it up (corroborated):
-dtc decision add --concept billing_webhooks \
-  --title "Use Stripe for billing" \
-  --body "We use Stripe as the payment provider and verify webhook signatures."
-dtc explain "Billing Webhooks"
-```
-
-The narrative:
-
-- **Before a decision:** Billing Webhooks has strong evidence (route, signature
-  verification, test) *and* uncertainty - no decision explains its key choices.
-  Understanding Score is `58/100`.
-- **Risk review:** changing retry behavior without updating duplicate-delivery tests
-  is flagged **high severity**.
-- **After a corroborated decision:** the reasoning is now in repository memory (and
-  matches the code), the uncertainty clears, and the Understanding Score improves.
-  A decision that the code does *not* back up stays flagged as uncorroborated.
-
-A full, copy-pasteable walkthrough is in **[DEMO_SCRIPT.md](DEMO_SCRIPT.md)**.
-
-## Demo
-
-[![DevTime demo - Repository memory from evidence](assets/devtime-demo-thumbnail-v0.1.0.png)](https://youtu.be/1Hiu3Y9J_SI)
-
-Watch the 2-minute demo: DevTime scans a repo locally, explains concepts from evidence, surfaces uncertainty, catches a risky diff, and shows how a corroborated decision improves understanding.
-
-## Installation
-
-Requires **Python ≥ 3.11** and git.
-
-```bash
-git clone https://github.com/Shakargy/devtime.git
-cd devtime
-python -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -e ".[dev]"
-pytest                              # the full test suite should pass (77+ tests)
-```
-
-This installs the `dtc` command. See **[QUICKSTART.md](QUICKSTART.md)** for a
-step-by-step first run and troubleshooting.
 
 ## Commands
 
@@ -148,6 +143,9 @@ step-by-step first run and troubleshooting.
 
 (Also available: `dtc evidence`, `dtc debt`, `dtc status`, `dtc doctor --privacy`,
 `dtc export`, `dtc reset`.)
+
+Requires **Python >= 3.11** and git. See **[QUICKSTART.md](QUICKSTART.md)** for a
+step-by-step first run and troubleshooting.
 
 ## Example output
 
@@ -184,7 +182,7 @@ blindness, a false Billing Webhooks detection on a generic webhook system, a DB
 migration mis-counted as Background Jobs evidence, and more). Each failure became a
 fixture so it cannot silently regress.
 
-- Tests grew from 13 to 77+ as each real failure became a fixture.
+- Tests grew from 13 to 88 as real failures became fixtures.
 - Scan time on a 355-file real repo dropped from ~27.3s to ~0.48s after ignored-
   directory pruning.
 
@@ -213,14 +211,14 @@ intentionally not built yet - in **[LIMITATIONS.md](LIMITATIONS.md)**.
 
 This is an early, local-first V0 focused on being trustworthy before being large.
 Not yet built (intentionally): git-history signals, wired MCP transport, an AI
-provider, a UI, and any cloud/team/enterprise features. See LIMITATIONS.md.
+provider, a UI, and any cloud/team/enterprise features. See **[ROADMAP.md](ROADMAP.md)**.
 
 ## Contributing
 
 The most valuable contribution is a **fixture**: a small repository pattern plus the
 expected concepts, allowed claims, forbidden claims, and required uncertainty. If
 DevTime gets something wrong on your code, that wrong output can become a fixture so
-it never regresses. See `fixtures/` for the format and `tests/` for how they run.
+it never regresses. See **[CONTRIBUTING.md](CONTRIBUTING.md)**.
 
 ## License
 
