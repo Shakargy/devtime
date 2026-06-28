@@ -63,13 +63,13 @@ steps) is in **[DEMO_SCRIPT.md](DEMO_SCRIPT.md)**.
 ## Why this exists
 
 Git records what changed, but it does not preserve the reasoning behind those
-changes. When you return to a repository—or review one you did not write—you often
+changes. When you return to a repository - or review one you did not write - you often
 have to reconstruct why a behavior exists, what evidence supports it, and what is
 still uncertain.
 
 DevTime builds evidence-backed repository memory: a local layer that helps a
 codebase explain itself from code, tests, configs, routes, and recorded decisions.
-It shows what the repository can support with evidence—and, just as importantly,
+It shows what the repository can support with evidence - and, just as importantly,
 what it cannot support yet.
 
 ## Who it is for
