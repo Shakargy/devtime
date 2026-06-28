@@ -147,6 +147,34 @@ Anything outside these six is out of scope for V0. See [LIMITATIONS.md](LIMITATI
 Requires **Python >= 3.11** and git. See **[QUICKSTART.md](QUICKSTART.md)** for a
 step-by-step first run and troubleshooting.
 
+## Installation
+
+Recommended source install for now:
+
+```bash
+git clone https://github.com/Shakargy/devtime.git
+cd devtime
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+```
+
+Windows PowerShell:
+
+```powershell
+git clone https://github.com/Shakargy/devtime.git
+cd devtime
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -e ".[dev]"
+```
+
+Planned PyPI install (after the package is published and verified):
+
+```bash
+pipx install devtime
+```
+
 ## Example output
 
 ```
