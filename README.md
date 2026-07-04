@@ -10,11 +10,11 @@ risky changes.
 
 > No cloud. No telemetry. No code execution. No AI required.
 
-[![DevTime demo - Repository memory from evidence](assets/devtime-demo-thumbnail-v0.1.0.png)](https://youtu.be/1Hiu3Y9J_SI)
+![DevTime terminal demo - install, scan, and explain a repo from evidence](assets/devtime-terminal-demo.svg)
 
-Watch the 2-minute demo: DevTime scans a repo locally, explains concepts from
-evidence, surfaces uncertainty, catches a risky diff, and shows how a corroborated
-decision improves understanding.
+Prefer video? [Watch the 2-minute demo](https://youtu.be/1Hiu3Y9J_SI): DevTime scans
+a repo locally, explains concepts from evidence, surfaces uncertainty, catches a
+risky diff, and shows how a corroborated decision improves understanding.
 
 ---
 
