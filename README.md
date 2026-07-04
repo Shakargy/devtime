@@ -167,10 +167,50 @@ Anything outside these six is out of scope for V0. See [LIMITATIONS.md](LIMITATI
 | `dtc decision add` | Add a local decision record that can reduce uncertainty. |
 
 (Also available: `dtc evidence`, `dtc debt`, `dtc status`, `dtc doctor --privacy`,
-`dtc export`, `dtc reset`.)
+`dtc export`, `dtc reset`, `dtc mcp start`.)
 
 Requires **Python >= 3.11** and git. See **[QUICKSTART.md](QUICKSTART.md)** for a
 step-by-step first run and troubleshooting.
+
+## Use with coding agents (MCP)
+
+Your coding agent starts every session amnesiac about your repository and then
+guesses, confidently. DevTime gives it memory it can trust: a local, read-only MCP
+server that answers only with claims the repository can prove, plus explicit
+uncertainty for what it cannot.
+
+Install with MCP support and scan your repo:
+
+```bash
+pipx install "devtime-ei[mcp]"
+cd your-repo
+dtc init
+dtc scan
+```
+
+Add DevTime to Claude Code:
+
+```bash
+claude mcp add devtime -- dtc mcp start
+```
+
+Or in any MCP client that reads `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "devtime": {
+      "command": "dtc",
+      "args": ["mcp", "start"]
+    }
+  }
+}
+```
+
+The agent gets three read-only tools: `list_concepts`, `explain_concept`, and
+`get_context_pack` (governed context with do-not-change-without-review paths, tests
+to run, and agent guidance). Local stdio only - no network listener, no write tools,
+no source code returned, only evidence file paths.
 
 ## Installation
 
@@ -274,7 +314,7 @@ intentionally not built yet - in **[LIMITATIONS.md](LIMITATIONS.md)**.
 ## Roadmap
 
 This is an early, local-first V0 focused on being trustworthy before being large.
-Not yet built (intentionally): git-history signals, wired MCP transport, an AI
+Not yet built (intentionally): git-history signals, write-enabled MCP tools, an AI
 provider, a UI, and any cloud/team/enterprise features. See **[ROADMAP.md](ROADMAP.md)**.
 
 ## Contributing

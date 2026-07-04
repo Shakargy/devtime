@@ -37,7 +37,7 @@ change based on real feedback.
 
 ## Later
 
-- Read-only MCP transport.
+- Write-gated MCP tools (decisions, claim challenges) behind explicit permissions.
 - A local UI.
 - Shared team decisions.
 - Understanding Debt history over time.

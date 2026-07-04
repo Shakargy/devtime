@@ -341,20 +341,33 @@ def decision_add(
 
 @mcp_app.command("start")
 def mcp_start() -> None:
-    """Preview planned read-only MCP tools. Does NOT start a server in V0."""
-    from devtime.mcp.server import describe_server
+    """Start the local read-only MCP server over stdio (for coding agents)."""
+    # stdout belongs to the JSON-RPC stream: all diagnostics go to stderr.
+    err = Console(stderr=True)
 
-    console.print(describe_server())
-    # Honest exit: nothing was started, so a command named "start" returns nonzero.
-    raise typer.Exit(code=1)
+    if not paths.is_initialized():
+        err.print("[red]DevTime is not initialized here.[/red]")
+        err.print("Run [bold]dtc init[/bold] and [bold]dtc scan[/bold] in the repository first.")
+        raise typer.Exit(code=2)
+
+    from devtime.mcp.transport import McpDependencyMissing, run_stdio
+
+    err.print("DevTime MCP server: stdio, read-only, local only. Ctrl+C to stop.")
+    try:
+        run_stdio()
+    except McpDependencyMissing as exc:
+        # markup=False: the hint contains [mcp], which rich would eat as a tag.
+        err.print(str(exc), markup=False, style="red")
+        raise typer.Exit(code=1)
 
 
 @mcp_app.command("preview")
 def mcp_preview() -> None:
-    """Preview planned read-only MCP tools (transport not implemented in V0)."""
+    """Show implemented and planned read-only MCP tools."""
     from devtime.mcp.server import describe_server
 
-    console.print(describe_server())
+    # markup=False: the text contains [mcp], which rich would eat as a tag.
+    console.print(describe_server(), markup=False)
 
 
 @mcp_app.command("status")
