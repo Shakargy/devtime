@@ -18,10 +18,10 @@ def test_version_is_release_0_1_2():
     # v0.1.2 release: package metadata and __version__ agree on the release version.
     import importlib.metadata as m
 
-    assert devtime.__version__ == "0.1.2"
+    assert devtime.__version__ == "0.1.2.post1"
     # Distribution is published as "devtime-ei" (the name "devtime" is reserved on
     # PyPI); the import package and the dtc command stay "devtime"/"dtc".
-    assert m.version("devtime-ei") == "0.1.2"
+    assert m.version("devtime-ei") == "0.1.2.post1"
 
 
 # --- P0 Authentication headline precision ------------------------------------

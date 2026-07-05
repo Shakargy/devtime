@@ -1,6 +1,6 @@
 [project]
 name = "devtime-ei"
-version = "0.1.2"
+version = "0.1.2.post1"
 description = "Local-first Engineering Intelligence for software repositories"
 readme = "README.md"
 requires-python = ">=3.11"
