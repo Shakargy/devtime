@@ -1,6 +1,6 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.shakargy/devtime",
+  "name": "io.github.Shakargy/devtime",
   "title": "DevTime",
   "description": "Local-first, read-only MCP server for evidence-backed repository memory.",
   "repository": {

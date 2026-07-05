@@ -212,9 +212,9 @@ The agent gets three read-only tools: `list_concepts`, `explain_concept`, and
 to run, and agent guidance). Local stdio only - no network listener, no write tools,
 no source code returned, only evidence file paths.
 
-DevTime is listed in the official MCP Registry as `io.github.shakargy/devtime`.
+DevTime is listed in the official MCP Registry as `io.github.Shakargy/devtime`.
 
-<!-- mcp-name: io.github.shakargy/devtime -->
+<!-- mcp-name: io.github.Shakargy/devtime -->
 
 ## Installation
 
