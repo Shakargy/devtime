@@ -31,6 +31,8 @@ dtc --help
 python -c "import importlib.metadata as m; print(m.version('devtime-ei'))"
 # Verify the bundled demo resource ships and works from the wheel:
 dtc demo init && (cd devtime-demo-saas && dtc init && dtc scan && dtc concepts)
+# Verify the MCP surface (transport needs the extra: pip install "devtime-ei[mcp]"):
+dtc mcp preview
 ```
 
 Windows PowerShell:

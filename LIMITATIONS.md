@@ -65,8 +65,10 @@ do. Read this before trusting any single output.
 
 - **No AI provider is wired.** DevTime never calls a model. AI narration is an
   intentional future option, not part of V0.
-- **MCP transport is not wired.** The tool surface, schemas, and read-only permission
-  model exist in code, but there is no live server you can connect an agent to yet.
+- **MCP transport is read-only and narrow (v0.1.2).** `dtc mcp start` runs a local
+  stdio server exposing three read tools (list_concepts, explain_concept,
+  get_context_pack). No write tools, no network listener, no source code returned.
+  The rest of the planned tool surface is not implemented yet.
 
 ## 7. Performance limitations
 
@@ -84,7 +86,7 @@ To keep V0 trustworthy rather than large, the following are deliberately **out o
 scope** for now:
 
 - git-history signals (freshness, ownership, lineage from commits)
-- wired MCP transport / write-enabled MCP tools
+- write-enabled MCP tools (the wired transport is read-only)
 - an AI provider integration
 - a UI
 - cloud, team sync, and enterprise policy layers
