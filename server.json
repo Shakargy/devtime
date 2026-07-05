@@ -1,0 +1,22 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.shakargy/devtime",
+  "title": "DevTime",
+  "description": "Local-first, read-only MCP server for evidence-backed repository memory.",
+  "repository": {
+    "url": "https://github.com/Shakargy/devtime",
+    "source": "github"
+  },
+  "websiteUrl": "https://github.com/Shakargy/devtime",
+  "version": "0.1.2",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "devtime-ei",
+      "version": "0.1.2",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

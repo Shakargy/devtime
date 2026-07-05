@@ -212,6 +212,10 @@ The agent gets three read-only tools: `list_concepts`, `explain_concept`, and
 to run, and agent guidance). Local stdio only - no network listener, no write tools,
 no source code returned, only evidence file paths.
 
+DevTime is listed in the official MCP Registry as `io.github.shakargy/devtime`.
+
+<!-- mcp-name: io.github.shakargy/devtime -->
+
 ## Installation
 
 Recommended: install from PyPI with [pipx](https://pipx.pypa.io/) so the `dtc`
