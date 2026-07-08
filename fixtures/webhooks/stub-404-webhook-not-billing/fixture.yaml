@@ -1,0 +1,18 @@
+id: stub-404-webhook-not-billing
+type: false-positive
+language: typescript
+framework: nextjs
+# v0.1.3 (Cal.com proof run): Cal.com community edition ships
+# pages/api/stripe/webhook.ts as a handler that ALWAYS returns 404 ("not available
+# in community edition"). A disabled-endpoint stub is not billing behavior - the
+# file name says stripe/webhook, but the repository cannot prove billing webhooks.
+# This fixture guards the honest refusal that Pages Router extraction could break.
+expected:
+  concepts: []
+  allowed_claims: []
+  forbidden_claims:
+    - "Billing Webhooks is present"
+    - "Billing Webhooks has active route handling"
+  required_uncertainty: []
+privacy:
+  contains_secrets: false

@@ -23,6 +23,16 @@ _MIDDLEWARE_RE = re.compile(
 )
 _BULLMQ_WORKER_RE = re.compile(r"""new\s+Worker\(\s*['"]([^'"]+)['"]""")
 _BULLMQ_QUEUE_RE = re.compile(r"""new\s+Queue\(\s*['"]([^'"]+)['"]""")
+# Custom task-runner infrastructure (v0.1.3, Cal.com proof run): Cal.com's Tasker
+# (InternalTasker / RedisTasker / task-processor) is real background-job behavior
+# that the BullMQ-only patterns above cannot see. Matches task-runner classes and
+# enqueue/task-processing verbs - NOT bare "task"/"job" words (todo apps,
+# employment taxonomy) and NOT service workers.
+# NOTE: no `\w*` prefixes here - `\w*Tasker` backtracks catastrophically on long
+# identifiers in bundled/minified files (took a 4s Cal.com scan to 135s).
+_TASK_RUNNER_RE = re.compile(
+    r"Tasker|task[-_]processor|\btask_queue\b|\.enqueue\s*\(|\bprocessTasks?\s*\("
+)
 
 
 def extract_typescript_signals(file: WalkedFile) -> list[Signal]:
@@ -94,6 +104,11 @@ def extract_typescript_signals(file: WalkedFile) -> list[Signal]:
     for match in _BULLMQ_QUEUE_RE.finditer(text):
         signals.append(
             signal("queue", name=f"queue:{match.group(1)}", file=file, confidence=0.8)
+        )
+
+    if _TASK_RUNNER_RE.search(text):
+        signals.append(
+            signal("background_job", name="task-runner", file=file, confidence=0.75)
         )
 
     return signals

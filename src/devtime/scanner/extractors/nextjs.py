@@ -1,10 +1,16 @@
-"""Next.js App Router signal extractor.
+"""Next.js App Router and Pages Router API signal extractor.
 
 Added during V0 Reality Validation: Snapilio and SaaSVoice are Next.js App Router
 apps whose API surface is file-based (`app/api/**/route.ts` exporting HTTP method
 handlers). The Express/FastAPI extractors saw none of it, so every concept
 degraded to weak dependency evidence. This extractor parses route handlers and
 derives the route path from the directory structure.
+
+v0.1.3 (Cal.com proof run): Pages Router API files (`pages/api/**/*.ts`) are also
+routes; without them, admin/trpc surfaces were invisible. Disabled-endpoint stubs
+(handlers whose only behavior is a 404/501 response, e.g. features stripped from a
+community edition) are NOT route behavior and are skipped - a permanently-404
+endpoint must not confirm a concept.
 """
 
 from __future__ import annotations
@@ -57,7 +63,74 @@ def derive_route_path(rel_path: str) -> str:
     return "/" + "/".join(cleaned)
 
 
+_PAGES_API_EXTS = (".ts", ".js", ".tsx", ".jsx")
+
+# Pages Router handlers: export default function handler(...) / export default handler
+_PAGES_HANDLER_RE = re.compile(r"export\s+default\s+(?:async\s+)?(?:function\b|\w+)")
+
+_STATUS_RE = re.compile(r"(?:res\.status|new\s+Response\s*\([^)]*status\s*:)\s*\(?\s*(\d{3})")
+
+
+def is_pages_api_route(rel_path: str) -> bool:
+    if not rel_path.endswith(_PAGES_API_EXTS):
+        return False
+    return "pages/api/" in rel_path or rel_path.startswith("pages/api/")
+
+
+def derive_pages_route_path(rel_path: str) -> str:
+    """Turn apps/web/pages/api/trpc/admin/[trpc].ts -> /api/trpc/admin/[trpc]."""
+    marker = "pages/api/"
+    idx = rel_path.find(marker)
+    tail = rel_path[idx + len(marker):]
+    # Strip the extension; index files map to their directory.
+    for ext in _PAGES_API_EXTS:
+        if tail.endswith(ext):
+            tail = tail[: -len(ext)]
+            break
+    if tail.endswith("/index") or tail == "index":
+        tail = tail[: -len("index")].rstrip("/")
+    return "/api/" + tail if tail else "/api"
+
+
+def _is_disabled_stub(text: str) -> bool:
+    """A handler whose only responses are 404/501 is a disabled-endpoint stub.
+
+    Cal.com's community edition ships pages/api/stripe/webhook.ts as a handler
+    that always returns 404 ("not available in community edition"). A route that
+    can never do anything is not behavior evidence for any concept.
+    """
+    statuses = _STATUS_RE.findall(text)
+    if not statuses:
+        return False
+    if not set(statuses) <= {"404", "501"}:
+        return False
+    # Real handlers verify, branch, or delegate; stubs are tiny and self-contained.
+    if len(text) > 800:
+        return False
+    return "constructEvent" not in text
+
+
+def _extract_pages_api(file: WalkedFile) -> list[Signal]:
+    text = read_text(file)
+    if not _PAGES_HANDLER_RE.search(text):
+        return []
+    if _is_disabled_stub(text):
+        return []
+    route_path = derive_pages_route_path(file.rel_path)
+    return [
+        signal(
+            "route",
+            name=f"ANY {route_path}",
+            file=file,
+            confidence=0.78,
+            metadata={"method": "ANY", "path": route_path, "framework": "nextjs-pages"},
+        )
+    ]
+
+
 def extract_nextjs_signals(file: WalkedFile) -> list[Signal]:
+    if is_pages_api_route(file.rel_path):
+        return _extract_pages_api(file)
     if not is_app_router_route(file.rel_path):
         return []
     text = read_text(file)
