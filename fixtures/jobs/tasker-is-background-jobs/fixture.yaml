@@ -1,0 +1,20 @@
+id: tasker-is-background-jobs
+type: concept
+language: typescript
+framework: nextjs
+# v0.1.3 (Cal.com proof run): a custom task-runner (InternalTasker / RedisTasker /
+# task-processor) is real background-job behavior even without BullMQ/Celery.
+# Before this fixture, Cal.com's Tasker only produced dependency+test evidence and
+# Background Jobs was capped at weak ("behavior is not established"). A minimal
+# custom tasker honestly earns the partial claim, never the weak one.
+expected:
+  concepts:
+    - Background Jobs
+  allowed_claims:
+    - "Background Jobs signals are present"
+  forbidden_claims:
+    - "Background Jobs behavior is not established"
+    - "Billing Webhooks is present"
+  required_uncertainty: []
+privacy:
+  contains_secrets: false

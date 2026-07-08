@@ -1,0 +1,18 @@
+id: pages-api-admin-is-admin-permissions
+type: concept
+language: typescript
+framework: nextjs
+# v0.1.3 (Cal.com proof run): Pages Router API files (pages/api/**) are routes.
+# Before this fixture, Cal.com's admin surface (pages/api/trpc/admin) was invisible
+# and Admin Permissions was not detected at all.
+expected:
+  concepts:
+    - Admin Permissions
+  allowed_claims:
+    - "Admin Permissions signals are present"
+    - "Admin Permissions has active route handling."
+  forbidden_claims:
+    - "Admin Permissions behavior is not established"
+  required_uncertainty: []
+privacy:
+  contains_secrets: false
