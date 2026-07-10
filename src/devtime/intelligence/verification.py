@@ -149,7 +149,16 @@ BUILTIN_CLAIMS: dict[str, ClaimDefinition] = {
         statement="Incoming billing webhooks verify the payment provider's signature.",
         category="billing",
     ),
+    "jwt-authentication": ClaimDefinition(
+        slug="jwt-authentication",
+        name="JWT Authentication",
+        statement="Authentication uses JWT access tokens.",
+        category="authentication",
+    ),
 }
+
+# JWT library names for dependency evidence.
+_JWT_DEP_TOKENS = ("jsonwebtoken", "pyjwt", "jose", "njwt", "jwt-decode", "fast-jwt")
 
 _LIMITATIONS = [
     "Heuristic scanner: evidence comes from static patterns, not execution.",
@@ -225,7 +234,8 @@ def verify_claim(conn: sqlite3.Connection, slug: str) -> VerificationResult:
         )
 
     rows = _load_signals(conn, scan_id)
-    return _verify_billing_webhook_signature(definition, rows, scan_id)
+    evaluator = _EVALUATORS[slug]
+    return evaluator(definition, rows, scan_id)
 
 
 def _verify_billing_webhook_signature(
@@ -346,6 +356,135 @@ def _verify_billing_webhook_signature(
         verified_at=_now(),
         engine_version=__version__,
     )
+
+
+def _verify_jwt_authentication(
+    definition: ClaimDefinition, rows: list[sqlite3.Row], scan_id: str
+) -> VerificationResult:
+    """Verify JWT access-token authentication, with the documentation-vs-
+    implementation contradiction detector.
+
+    The purpose classifier (Trust Repair v0.0.6) distinguishes access tokens
+    from invitation/verification tokens. Documentation claiming JWT while the
+    only JWT usage found is invitation-purpose is a real, both-sided conflict.
+    Documentation with NO usage found at all is missing evidence (WEAK), not a
+    contradiction: absence is not positive conflicting evidence.
+    """
+    access_usage: list[EvidenceRef] = []
+    invitation_usage: list[EvidenceRef] = []
+    unclear_usage: list[EvidenceRef] = []
+    jwt_docs: list[EvidenceRef] = []
+    jwt_deps: list[EvidenceRef] = []
+
+    for row in rows:
+        hay = _hay(row)
+        kind = row["kind"]
+
+        if kind == "token_usage":
+            try:
+                purpose = json.loads(row["metadata_json"] or "{}").get("purpose", "unclear")
+            except json.JSONDecodeError:
+                purpose = "unclear"
+            if purpose == "access":
+                access_usage.append(
+                    _ref(row, "JWT used as an access token (login/bearer context).", "strong")
+                )
+            elif purpose == "invitation":
+                invitation_usage.append(
+                    _ref(
+                        row,
+                        "JWT used for invitation/verification tokens, not access.",
+                        "moderate",
+                    )
+                )
+            else:
+                unclear_usage.append(
+                    _ref(row, "JWT usage found; its purpose is unclear.", "weak")
+                )
+        elif kind in ("doc", "decision") and "jwt" in hay:
+            jwt_docs.append(
+                _ref(
+                    row,
+                    "Documentation or decision record references JWT.",
+                    "moderate" if kind == "decision" else "weak",
+                )
+            )
+        elif kind == "dependency" and any(t in hay for t in _JWT_DEP_TOKENS):
+            jwt_deps.append(
+                _ref(row, "JWT library dependency is declared.", "weak")
+            )
+
+    why: list[str] = []
+    missing: list[str] = []
+    contradictions: list[Contradiction] = []
+    supporting: list[EvidenceRef] = []
+
+    if access_usage:
+        status = SUPPORTED
+        supporting = access_usage + jwt_docs + jwt_deps
+        why.append("JWT access-token usage evidence was found.")
+        if jwt_docs:
+            why.append("Documentation or a decision record corroborates JWT usage.")
+        else:
+            missing.append("A decision record explaining the JWT choice.")
+    elif jwt_docs and invitation_usage:
+        status = CONTRADICTED
+        supporting = invitation_usage
+        doc = jwt_docs[0]
+        inv = invitation_usage[0]
+        contradictions.append(
+            Contradiction(
+                summary="Documentation claims JWT authentication, but the only JWT "
+                "usage found is invitation/verification tokens.",
+                claimed_side=f"{doc.path} references JWT in a documentation or "
+                "decision context, implying JWT-based authentication.",
+                observed_side=f"{inv.path} uses JWT for invitation/verification "
+                "tokens. Invitation tokens are not access-token authentication, "
+                "and no access-token usage was found.",
+                evidence=[doc, inv],
+            )
+        )
+        why.append(
+            "Documentation references JWT, but no access-token usage exists; "
+            "the only JWT usage found is invitation-purpose."
+        )
+        missing.append("JWT access-token usage (login/bearer/authorization context).")
+    elif jwt_docs or jwt_deps or invitation_usage or unclear_usage:
+        status = WEAK
+        supporting = jwt_docs + jwt_deps + invitation_usage + unclear_usage
+        why.append(
+            "JWT surface exists (documentation, dependencies, or unclear usage), "
+            "but access-token authentication is not established."
+        )
+        missing.append("JWT access-token usage (login/bearer/authorization context).")
+    else:
+        status = UNKNOWN
+        why.append(
+            "No JWT evidence was found in the scanned files. The claim does not "
+            "apply, or the usage is outside scanner coverage."
+        )
+        missing.append("Any JWT usage, dependency, or documentation.")
+
+    return VerificationResult(
+        claim_slug=definition.slug,
+        claim_name=definition.name,
+        statement=definition.statement,
+        status=status,
+        why=why,
+        supporting=supporting,
+        contradictions=contradictions,
+        missing=missing,
+        limitations=_LIMITATIONS,
+        scan_id=scan_id,
+        verified_at=_now(),
+        engine_version=__version__,
+    )
+
+
+_EVALUATORS = {
+    "billing-webhook-signature": _verify_billing_webhook_signature,
+    "jwt-authentication": _verify_jwt_authentication,
+}
 
 
 def _ref(row: sqlite3.Row, observation: str, strength: str) -> EvidenceRef:

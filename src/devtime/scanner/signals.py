@@ -10,6 +10,7 @@ Never executes repository code, never makes network calls.
 from __future__ import annotations
 
 import hashlib
+import json
 import sqlite3
 import uuid
 from dataclasses import dataclass, field
@@ -214,7 +215,10 @@ def run_scan(
                         s.start_line,
                         s.end_line,
                         s.confidence,
-                        "{}",
+                        # v0.3.0: persist extractor metadata (was hardcoded '{}',
+                        # silently dropping e.g. the JWT purpose classification
+                        # that verification reads back from the database).
+                        json.dumps(s.metadata or {}),
                     ),
                 )
         conn.commit()

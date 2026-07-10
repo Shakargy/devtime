@@ -14,14 +14,14 @@ from devtime.scanner.extractors.base import Signal
 
 # --- version ------------------------------------------------------------------
 
-def test_version_is_release_0_2_0():
-    # v0.2.0 release: package metadata and __version__ agree on the release version.
+def test_version_is_release_0_3_0():
+    # v0.3.0 release: package metadata and __version__ agree on the release version.
     import importlib.metadata as m
 
-    assert devtime.__version__ == "0.2.0"
+    assert devtime.__version__ == "0.3.0"
     # Distribution is published as "devtime-ei" (the name "devtime" is reserved on
     # PyPI); the import package and the dtc command stay "devtime"/"dtc".
-    assert m.version("devtime-ei") == "0.2.0"
+    assert m.version("devtime-ei") == "0.3.0"
 
 
 # --- P0 Authentication headline precision ------------------------------------
