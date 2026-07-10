@@ -260,22 +260,11 @@ pip install -e ".[dev]"
 ## Verify claims (experimental)
 
 DevTime is growing into a verification layer: ask whether a statement about the
-repository is actually supported.
+repository is actually supported. Watch a claim live through its whole life -
+supported, contradicted by a stub, restored, and stale after the evidence
+changes:
 
-```bash
-dtc verify billing-webhook-signature
-```
-
-```
-Billing Webhook Signature Verification
-Claim: Incoming billing webhooks verify the payment provider's signature.
-Status: CONTRADICTED
-
-Contradictions:
-  - The billing webhook endpoint cannot verify signatures because it is a disabled stub.
-      claimed:  apps/web/pages/api/stripe/webhook.ts is named and routed as a billing webhook endpoint.
-      observed: The handler's only behavior is a 404/501 response.
-```
+![dtc verify demo - a claim goes from SUPPORTED to CONTRADICTED to STALE](assets/devtime-verify-demo.svg)
 
 Statuses are SUPPORTED, WEAK, CONTRADICTED, or UNKNOWN; contradictions always
 show both sides; changed evidence marks a claim STALE. Two built-in claims ship
