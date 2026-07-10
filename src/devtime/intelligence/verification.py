@@ -580,6 +580,38 @@ def load_latest_verification(
     )
 
 
+def claims_affected_by_paths(
+    conn: sqlite3.Connection, changed_paths: list[str]
+) -> list[dict]:
+    """Claim impact for a set of changed paths (v0.4.0, diff integration).
+
+    For every claim with a stored verification, report it when a changed path
+    is one of its recorded evidence files. Only evidence files count: a diff
+    touching unrelated files never flags a claim. Advisory output - the caller
+    decides what to do with it.
+    """
+    changed = set(changed_paths)
+    out: list[dict] = []
+    for slug in BUILTIN_CLAIMS:
+        latest = load_latest_verification(conn, slug)
+        if latest is None:
+            continue
+        result, fingerprints, created_at = latest
+        evidence_paths = {fp["path"] for fp in fingerprints}
+        hits = sorted(evidence_paths & changed)
+        if hits:
+            out.append(
+                {
+                    "claim_id": slug,
+                    "previous_status": result["status"],
+                    "verified_at": created_at,
+                    "changed_evidence": hits,
+                    "suggested_action": f"dtc verify {slug}",
+                }
+            )
+    return out
+
+
 def freshness_for(conn: sqlite3.Connection, slug: str) -> tuple[str, list[str]]:
     """Compare stored evidence fingerprints against current file hashes.
 

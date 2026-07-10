@@ -347,11 +347,29 @@ def risk(
     conn = connection.connect()
     try:
         intelligence = repository.load_all_concepts(conn)
+        from devtime.intelligence.verification import claims_affected_by_paths
+
+        claim_impact = claims_affected_by_paths(conn, info.changed_files)
     finally:
         conn.close()
 
     review = review_diff(info, intelligence)
     console.print(render_risk_review(review), markup=False)
+
+    # v0.4.0: claim impact. A diff is not just risky in general - it can
+    # destabilize a previously verified claim. Only evidence files count;
+    # nothing is printed when no verified claim is affected.
+    if claim_impact:
+        console.print("\nClaim impact:", markup=False)
+        for item in claim_impact:
+            console.print(
+                f"  - {item['claim_id']} (previous status: {item['previous_status']})",
+                markup=False,
+            )
+            for p in item["changed_evidence"]:
+                console.print(f"      changed evidence: {p}", markup=False)
+            console.print(f"      re-verify: {item['suggested_action']}", markup=False)
+
     if review.state == STATE_REVIEW_FAILED:
         raise typer.Exit(code=1)
 

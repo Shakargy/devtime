@@ -329,3 +329,45 @@ def test_verify_all_returns_both_claims(tmp_path, monkeypatch):
     payload = json.loads(result.stdout)
     ids = {r["claim_id"] for r in payload["results"]}
     assert ids == {"billing-webhook-signature", "jwt-authentication"}
+
+
+# --- diff-aware claim impact (v0.4.0) ---------------------------------------------
+
+def test_claims_affected_by_changed_evidence(tmp_path, monkeypatch):
+    _repo(tmp_path, {"src/billing/stripe-webhook.ts": STRIPE_HANDLER})
+    _init_scan(tmp_path, monkeypatch)
+    conn = connection.connect()
+    try:
+        ver.save_verification(conn, ver.verify_claim(conn, "billing-webhook-signature"))
+        impact = ver.claims_affected_by_paths(conn, ["src/billing/stripe-webhook.ts"])
+        assert len(impact) == 1
+        item = impact[0]
+        assert item["claim_id"] == "billing-webhook-signature"
+        assert item["previous_status"] == ver.SUPPORTED
+        assert item["changed_evidence"] == ["src/billing/stripe-webhook.ts"]
+        assert "dtc verify" in item["suggested_action"]
+    finally:
+        conn.close()
+
+
+def test_unrelated_diff_affects_no_claims(tmp_path, monkeypatch):
+    _repo(tmp_path, {"src/billing/stripe-webhook.ts": STRIPE_HANDLER})
+    _init_scan(tmp_path, monkeypatch)
+    conn = connection.connect()
+    try:
+        ver.save_verification(conn, ver.verify_claim(conn, "billing-webhook-signature"))
+        impact = ver.claims_affected_by_paths(conn, ["README.md", "src/util/other.ts"])
+        assert impact == []
+    finally:
+        conn.close()
+
+
+def test_no_verifications_means_no_impact(tmp_path, monkeypatch):
+    _repo(tmp_path, {"src/billing/stripe-webhook.ts": STRIPE_HANDLER})
+    _init_scan(tmp_path, monkeypatch)
+    conn = connection.connect()
+    try:
+        impact = ver.claims_affected_by_paths(conn, ["src/billing/stripe-webhook.ts"])
+        assert impact == []
+    finally:
+        conn.close()
