@@ -135,6 +135,21 @@ CREATE TABLE IF NOT EXISTS risk_findings (
     created_at TEXT NOT NULL
 );
 
+-- v0.2.0: immutable claim verification results (the verification slice).
+-- Databases created before v0.2.0 get this table lazily via
+-- verification.ensure_verifications_table (idempotent, no migration needed).
+CREATE TABLE IF NOT EXISTS verifications (
+    id TEXT PRIMARY KEY,
+    repository_id TEXT NOT NULL,
+    claim_slug TEXT NOT NULL,
+    status TEXT NOT NULL,
+    scan_id TEXT,
+    result_json TEXT NOT NULL,
+    evidence_fingerprints_json TEXT NOT NULL DEFAULT '[]',
+    engine_version TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS context_packs (
     id TEXT PRIMARY KEY,
     concept_id TEXT NOT NULL,

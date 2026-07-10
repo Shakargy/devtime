@@ -70,6 +70,15 @@ do. Read this before trusting any single output.
   get_context_pack). No write tools, no network listener, no source code returned.
   The rest of the planned tool surface is not implemented yet.
 
+## 6b. Verification limitations (v0.2, experimental)
+
+- One built-in claim (billing-webhook-signature). User-defined claims are not
+  supported yet, deliberately.
+- Verification is rule-driven over scanner signals; it inherits every scanner
+  coverage limitation listed here.
+- Statuses mean "per DevTime's evidence rules", not formal proof or a security
+  guarantee. See [VERIFICATION.md](VERIFICATION.md).
+
 ## 7. Performance limitations
 
 - Scans prune ignored directories before traversal, which makes them fast on typical

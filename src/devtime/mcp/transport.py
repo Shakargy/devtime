@@ -32,7 +32,12 @@ SERVER_INSTRUCTIONS = (
 )
 
 # The subset of the planned tool surface that is implemented and exposed.
-IMPLEMENTED_TOOLS = ("list_concepts", "explain_concept", "get_context_pack")
+IMPLEMENTED_TOOLS = (
+    "list_concepts",
+    "explain_concept",
+    "get_context_pack",
+    "verify_claim",
+)
 
 _NOT_INITIALIZED = {
     "error": "not_initialized",
@@ -90,6 +95,45 @@ def build_server():
         if not paths.is_initialized():
             return _NOT_INITIALIZED
         return tools.get_context_pack(concept, mode=mode)
+
+    @server.tool()
+    def verify_claim(claim_id: str = "") -> dict:
+        """Verify a repository claim against scanned evidence (read-only compute).
+
+        Returns status (SUPPORTED / WEAK / CONTRADICTED / UNKNOWN), why,
+        supporting evidence with file paths, both-sided contradictions, missing
+        evidence, and coverage limitations. Call with no claim_id to list the
+        built-in claims. Results are computed fresh and NOT persisted (this
+        server stays read-only); use `dtc verify` in a terminal to record one.
+        """
+        if not paths.is_initialized():
+            return _NOT_INITIALIZED
+        from devtime.db import connection
+        from devtime.intelligence import verification as ver
+
+        conn = connection.connect()
+        try:
+            if not claim_id:
+                return {
+                    "builtin_claims": [
+                        {
+                            "claim_id": d.slug,
+                            "name": d.name,
+                            "statement": d.statement,
+                        }
+                        for d in ver.BUILTIN_CLAIMS.values()
+                    ]
+                }
+            try:
+                result = ver.verify_claim(conn, claim_id)
+            except KeyError:
+                return {
+                    "error": "unknown_claim",
+                    "hint": "Call verify_claim with no claim_id to list built-in claims.",
+                }
+            return result.to_dict()
+        finally:
+            conn.close()
 
     return server
 

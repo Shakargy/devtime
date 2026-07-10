@@ -165,6 +165,7 @@ Anything outside these six is out of scope for V0. See [LIMITATIONS.md](LIMITATI
 | `dtc context <concept>` | Create a governed Context Pack for agents or humans. |
 | `dtc risk --diff` | Review a git diff for risky changes using local evidence (advisory). |
 | `dtc decision add` | Add a local decision record that can reduce uncertainty. |
+| `dtc verify [claim]` | Verify a repository claim against evidence: status, contradictions, freshness (experimental). |
 
 (Also available: `dtc evidence`, `dtc debt`, `dtc status`, `dtc doctor --privacy`,
 `dtc export`, `dtc reset`, `dtc mcp start`.)
@@ -207,9 +208,10 @@ Or in any MCP client that reads `.mcp.json`:
 }
 ```
 
-The agent gets three read-only tools: `list_concepts`, `explain_concept`, and
+The agent gets four read-only tools: `list_concepts`, `explain_concept`,
 `get_context_pack` (governed context with do-not-change-without-review paths, tests
-to run, and agent guidance). Local stdio only - no network listener, no write tools,
+to run, and agent guidance), and `verify_claim` (claim status, contradictions, and
+missing evidence, computed fresh and never persisted). Local stdio only - no network listener, no write tools,
 no source code returned, only evidence file paths.
 
 DevTime is listed in the official MCP Registry as `io.github.Shakargy/devtime`.
@@ -254,6 +256,30 @@ python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
 ```
+
+## Verify claims (experimental)
+
+DevTime is growing into a verification layer: ask whether a statement about the
+repository is actually supported.
+
+```bash
+dtc verify billing-webhook-signature
+```
+
+```
+Billing Webhook Signature Verification
+Claim: Incoming billing webhooks verify the payment provider's signature.
+Status: CONTRADICTED
+
+Contradictions:
+  - The billing webhook endpoint cannot verify signatures because it is a disabled stub.
+      claimed:  apps/web/pages/api/stripe/webhook.ts is named and routed as a billing webhook endpoint.
+      observed: The handler's only behavior is a 404/501 response.
+```
+
+Statuses are SUPPORTED, WEAK, CONTRADICTED, or UNKNOWN; contradictions always
+show both sides; changed evidence marks a claim STALE. One built-in claim ships
+in v0.2. See **[VERIFICATION.md](VERIFICATION.md)**.
 
 ## Example output
 

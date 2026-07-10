@@ -79,6 +79,119 @@ def demo_init(
 
 
 @app.command()
+def verify(
+    claim: str = typer.Argument(None, help="Claim id to verify. Omit to verify all built-in claims."),
+    list_claims: bool = typer.Option(False, "--list", help="List built-in claims with last status and freshness."),
+    as_json: bool = typer.Option(False, "--json", help="Stable machine-readable output."),
+) -> None:
+    """Verify a repository claim against scanned evidence (v0.2 experimental)."""
+    import json as _json
+
+    from devtime.db import connection
+    from devtime.intelligence import verification as ver
+
+    if not paths.is_initialized():
+        console.print("[red]Not initialized.[/red] Run dtc init first.")
+        raise typer.Exit(code=2)
+
+    conn = connection.connect()
+    try:
+        if list_claims:
+            rows = []
+            for slug, definition in ver.BUILTIN_CLAIMS.items():
+                latest = ver.load_latest_verification(conn, slug)
+                freshness, changed = ver.freshness_for(conn, slug)
+                rows.append(
+                    {
+                        "claim_id": slug,
+                        "name": definition.name,
+                        "statement": definition.statement,
+                        "last_status": latest[0]["status"] if latest else None,
+                        "freshness": freshness,
+                        "changed_evidence": changed,
+                    }
+                )
+            if as_json:
+                console.print_json(_json.dumps({"schema_version": "1", "claims": rows}))
+            else:
+                console.print("[bold]Built-in claims[/bold]\n")
+                for r in rows:
+                    status_txt = r["last_status"] or "never verified"
+                    console.print(f"  {r['claim_id']}")
+                    console.print(f"    {r['statement']}")
+                    console.print(f"    last status: {status_txt}   freshness: {r['freshness']}")
+                    for p in r["changed_evidence"]:
+                        console.print(f"      changed since verification: {p}", markup=False)
+                    console.print("")
+            return
+
+        slugs = [claim] if claim else list(ver.BUILTIN_CLAIMS.keys())
+        results = []
+        for slug in slugs:
+            try:
+                result = ver.verify_claim(conn, slug)
+            except KeyError:
+                console.print(f"[red]Unknown claim:[/red] {slug}")
+                console.print("Run [bold]dtc verify --list[/bold] to see built-in claims.")
+                raise typer.Exit(code=1)
+            ver.save_verification(conn, result)
+            results.append(result)
+
+        if as_json:
+            console.print_json(
+                _json.dumps(
+                    {
+                        "schema_version": "1",
+                        "command": "verify",
+                        "results": [r.to_dict() for r in results],
+                    }
+                )
+            )
+            return
+
+        for result in results:
+            _print_verification(result)
+    finally:
+        conn.close()
+
+
+def _print_verification(result) -> None:
+    color = {
+        "SUPPORTED": "green",
+        "WEAK": "yellow",
+        "CONTRADICTED": "red",
+        "UNKNOWN": "cyan",
+    }.get(result.status, "white")
+    console.print(f"[bold]{result.claim_name}[/bold]")
+    console.print(f"Claim: {result.statement}")
+    console.print(f"Status: [{color}]{result.status}[/{color}]")
+    console.print("")
+    console.print("Why:")
+    for line in result.why:
+        console.print(f"  - {line}", markup=False)
+    if result.supporting:
+        console.print("\nSupporting evidence:")
+        for e in result.supporting[:6]:
+            loc = f":{e.start_line}" if e.start_line else ""
+            console.print(f"  - {e.path}{loc}  [{e.strength}]", markup=False)
+            console.print(f"      {e.observation}", markup=False)
+    if result.contradictions:
+        console.print("\n[red]Contradictions:[/red]")
+        for c in result.contradictions:
+            console.print(f"  - {c.summary}", markup=False)
+            console.print(f"      claimed:  {c.claimed_side}", markup=False)
+            console.print(f"      observed: {c.observed_side}", markup=False)
+    if result.missing:
+        console.print("\nMissing evidence:")
+        for m in result.missing:
+            console.print(f"  - {m}", markup=False)
+    console.print("\nLimitations:")
+    for lim in result.limitations:
+        console.print(f"  - {lim}", markup=False)
+    console.print("")
+
+
+@app.command()
 def status() -> None:
     """Show local storage, AI, cloud, telemetry, MCP, and scan status."""
     from devtime.output.terminal import print_status
