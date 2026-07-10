@@ -278,8 +278,8 @@ Contradictions:
 ```
 
 Statuses are SUPPORTED, WEAK, CONTRADICTED, or UNKNOWN; contradictions always
-show both sides; changed evidence marks a claim STALE. One built-in claim ships
-in v0.2. See **[VERIFICATION.md](VERIFICATION.md)**.
+show both sides; changed evidence marks a claim STALE. Two built-in claims ship
+(billing webhook signatures, JWT authentication). See **[VERIFICATION.md](VERIFICATION.md)**.
 
 ## Example output
 

@@ -70,10 +70,10 @@ do. Read this before trusting any single output.
   get_context_pack). No write tools, no network listener, no source code returned.
   The rest of the planned tool surface is not implemented yet.
 
-## 6b. Verification limitations (v0.2, experimental)
+## 6b. Verification limitations (experimental)
 
-- One built-in claim (billing-webhook-signature). User-defined claims are not
-  supported yet, deliberately.
+- Two built-in claims (billing-webhook-signature, jwt-authentication).
+  User-defined claims are not supported yet, deliberately.
 - Verification is rule-driven over scanner signals; it inherits every scanner
   coverage limitation listed here.
 - Statuses mean "per DevTime's evidence rules", not formal proof or a security

@@ -1,4 +1,4 @@
-# Claim verification (experimental, v0.2)
+# Claim verification (experimental)
 
 DevTime is evolving into the verification layer for repository understanding:
 the layer developers and coding agents use to know whether a statement about a
@@ -55,13 +55,15 @@ same time: the last verification supported it, but its evidence changed since.
 Freshness only tracks files that were evidence for the claim. Unrelated changes
 never mark a claim stale.
 
-## Built-in claims (v0.2)
-
-One claim ships in this release, chosen because it is the best-covered domain
-in the scanner and it has a real-world contradiction story:
+## Built-in claims
 
 - **billing-webhook-signature** - "Incoming billing webhooks verify the payment
   provider's signature."
+- **jwt-authentication** (v0.3) - "Authentication uses JWT access tokens."
+  Includes the documentation-vs-implementation detector: documentation claiming
+  JWT while the only JWT usage found is invitation/verification tokens is a
+  both-sided contradiction. Documentation with no usage at all is WEAK, not
+  contradicted: absence is not positive conflicting evidence.
 
 Example contradiction, found in the wild: Cal.com's community edition ships
 `pages/api/stripe/webhook.ts` as a handler that always returns 404 ("not
@@ -84,7 +86,7 @@ sides and exact paths.
 - Heuristic scanner: evidence comes from static patterns, not execution.
 - Signature verification is recognized for known provider patterns
   (e.g. Stripe `constructEvent`); custom schemes may not be detected.
-- One built-in claim in v0.2. User-defined claims are deliberately not
+- Two built-in claims. User-defined claims are deliberately not
   supported yet: the claim model must earn trust before it grows a
   configuration language.
 - Coverage follows scanner language support; see [LIMITATIONS.md](LIMITATIONS.md).
@@ -92,6 +94,6 @@ sides and exact paths.
 ## Where this is going
 
 Next candidates, in order: more built-in claims over well-covered domains
-(webhook idempotency, JWT authentication), a documentation-vs-implementation
-contradiction detector, and diff-aware claim staleness in `dtc risk`. User-defined
+(webhook idempotency), more contradiction detectors, and diff-aware claim
+staleness in `dtc risk`. User-defined
 claims come after built-in claims prove trustworthy on real repositories.

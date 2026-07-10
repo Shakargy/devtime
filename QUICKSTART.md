@@ -27,7 +27,7 @@ python -m venv .venv
 source .venv/bin/activate          # Windows (PowerShell): .venv\Scripts\Activate.ps1
                                    # Windows (Git Bash):   source .venv/Scripts/activate
 pip install -e ".[dev]"
-pytest                             # optional: all tests pass (120 at v0.2.0)
+pytest                             # optional: all tests pass (126 at v0.3.0)
 ```
 
 ## 3. Create the demo repo
@@ -132,7 +132,7 @@ A fresh-clone check was run on the current candidate:
 - **OS:** Windows 11 (Git Bash)
 - **Python:** 3.11.9
 - **Install:** `pip install -e ".[dev]"`
-- **Tests:** all passing (120 at v0.2.0)
+- **Tests:** all passing (126 at v0.3.0)
 - **Demo:** `dtc init` / `dtc scan` / `dtc concepts` / `dtc explain "Billing Webhooks"`
   all produced the expected output from a clean `git clone`.
 

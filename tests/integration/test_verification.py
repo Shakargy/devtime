@@ -247,3 +247,85 @@ def test_mcp_exposes_verify_claim(tmp_path, monkeypatch):
     text = str(result)
     assert "SUPPORTED" in text
     assert "stripe-webhook" in text
+
+
+# --- jwt-authentication claim (v0.3.0) -------------------------------------------
+
+ACCESS_JWT = """
+import jwt from "jsonwebtoken";
+export function login(user) {
+  return jwt.sign({ sub: user.id }, process.env.SECRET, { expiresIn: "1h" });
+}
+"""
+
+INVITE_JWT = """
+import jwt from "jsonwebtoken";
+export function createInviteToken(email) {
+  // invitation link token for email verification
+  return jwt.sign({ email, invite: true }, process.env.SECRET);
+}
+"""
+
+JWT_DOC = "# Authentication\n\n## Use JWT for API authentication\n\nWe sign JWTs.\n"
+
+
+def test_jwt_supported_with_access_usage(tmp_path, monkeypatch):
+    _repo(tmp_path, {"src/auth/login.ts": ACCESS_JWT})
+    _init_scan(tmp_path, monkeypatch)
+    result = _verify("jwt-authentication")
+    assert result.status == ver.SUPPORTED
+
+
+def test_jwt_docs_only_is_weak_not_contradicted(tmp_path, monkeypatch):
+    # Absence of usage is missing evidence, never a contradiction.
+    _repo(tmp_path, {"docs/auth.md": JWT_DOC})
+    _init_scan(tmp_path, monkeypatch)
+    result = _verify("jwt-authentication")
+    assert result.status == ver.WEAK
+    assert not result.contradictions
+
+
+def test_jwt_docs_vs_invitation_only_is_contradicted(tmp_path, monkeypatch):
+    _repo(tmp_path, {
+        "docs/auth.md": JWT_DOC,
+        "src/tokens/invite.ts": INVITE_JWT,
+    })
+    _init_scan(tmp_path, monkeypatch)
+    result = _verify("jwt-authentication")
+    assert result.status == ver.CONTRADICTED
+    c = result.contradictions[0]
+    assert c.claimed_side and c.observed_side
+    assert "invitation" in c.observed_side.lower()
+
+
+def test_jwt_unknown_without_any_jwt_surface(tmp_path, monkeypatch):
+    _repo(tmp_path, {"src/util/math.ts": "export const add = (a, b) => a + b;\n"})
+    _init_scan(tmp_path, monkeypatch)
+    result = _verify("jwt-authentication")
+    assert result.status == ver.UNKNOWN
+
+
+def test_signal_metadata_survives_persistence(tmp_path, monkeypatch):
+    # Regression: metadata_json was hardcoded to '{}' at INSERT, silently
+    # dropping the JWT purpose classification the verifier reads back.
+    _repo(tmp_path, {"src/auth/login.ts": ACCESS_JWT})
+    _init_scan(tmp_path, monkeypatch)
+    conn = connection.connect()
+    try:
+        row = conn.execute(
+            "SELECT metadata_json FROM signals WHERE kind='token_usage' LIMIT 1"
+        ).fetchone()
+        assert row is not None
+        assert json.loads(row["metadata_json"]).get("purpose") == "access"
+    finally:
+        conn.close()
+
+
+def test_verify_all_returns_both_claims(tmp_path, monkeypatch):
+    _repo(tmp_path, {"src/auth/login.ts": ACCESS_JWT})
+    _init_scan(tmp_path, monkeypatch)
+    result = runner.invoke(app, ["verify", "--json"])
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    ids = {r["claim_id"] for r in payload["results"]}
+    assert ids == {"billing-webhook-signature", "jwt-authentication"}
