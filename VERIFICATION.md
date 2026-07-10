@@ -71,6 +71,20 @@ available in community edition"). The file name claims webhook handling; the
 implementation is a disabled stub. `dtc verify` reports CONTRADICTED with both
 sides and exact paths.
 
+## Diff impact (v0.4)
+
+`dtc risk --diff` now reports which verified claims a diff destabilizes:
+
+```
+Claim impact:
+  - billing-webhook-signature (previous status: SUPPORTED)
+      changed evidence: src/billing/stripe-webhook.ts
+      re-verify: dtc verify billing-webhook-signature
+```
+
+Only a claim's recorded evidence files count. A diff touching unrelated files
+never flags a claim, and nothing is printed when no verified claim is affected.
+
 ## Trust model
 
 - Deterministic and rule-driven. No AI, no network, no code execution.
@@ -94,6 +108,6 @@ sides and exact paths.
 ## Where this is going
 
 Next candidates, in order: more built-in claims over well-covered domains
-(webhook idempotency), more contradiction detectors, and diff-aware claim
-staleness in `dtc risk`. User-defined
+(webhook idempotency), more contradiction detectors, and machine-readable
+claim impact in risk output. User-defined
 claims come after built-in claims prove trustworthy on real repositories.
