@@ -114,9 +114,21 @@ def _extract_pages_api(file: WalkedFile) -> list[Signal]:
     text = read_text(file)
     if not _PAGES_HANDLER_RE.search(text):
         return []
-    if _is_disabled_stub(text):
-        return []
     route_path = derive_pages_route_path(file.rel_path)
+    if _is_disabled_stub(text):
+        # v0.2.0: a stub is not a route, but it IS a fact worth remembering - the
+        # verification engine uses it as contradiction evidence ("the endpoint
+        # exists in name; its only behavior is a 404/501"). Concept detection
+        # ignores this kind entirely.
+        return [
+            signal(
+                "disabled_endpoint",
+                name=f"STUB {route_path}",
+                file=file,
+                confidence=0.8,
+                metadata={"path": route_path, "framework": "nextjs-pages"},
+            )
+        ]
     return [
         signal(
             "route",
