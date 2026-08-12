@@ -100,11 +100,14 @@ def build_server():
     def verify_claim(claim_id: str = "") -> dict:
         """Verify a repository claim against scanned evidence (read-only compute).
 
-        Returns status (SUPPORTED / WEAK / CONTRADICTED / UNKNOWN), why,
-        supporting evidence with file paths, both-sided contradictions, missing
-        evidence, and coverage limitations. Call with no claim_id to list the
-        built-in claims. Results are computed fresh and NOT persisted (this
-        server stays read-only); use `dtc verify` in a terminal to record one.
+        Returns status (SUPPORTED / WEAK / CONTRADICTED / UNKNOWN /
+        NOT_APPLICABLE), why, supporting evidence with file paths, both-sided
+        contradictions, missing evidence, and coverage limitations.
+        NOT_APPLICABLE means the repository has no surface this claim is about,
+        which is different from UNKNOWN (surface exists, evidence cannot
+        decide). Call with no claim_id to list the built-in claims. Results are
+        computed fresh and NOT persisted (this server stays read-only); use
+        `dtc verify` in a terminal to record one.
         """
         if not paths.is_initialized():
             return _NOT_INITIALIZED

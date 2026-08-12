@@ -97,51 +97,71 @@ def verify(
     conn = connection.connect()
     try:
         if list_claims:
+            # Relevance is computed live so the list answers the useful question:
+            # which of these claims apply to THIS repository?
+            current = {r.claim_slug: r for r in ver.verify_all(conn)}
             rows = []
             for slug, definition in ver.BUILTIN_CLAIMS.items():
                 latest = ver.load_latest_verification(conn, slug)
                 freshness, changed = ver.freshness_for(conn, slug)
+                live = current.get(slug)
                 rows.append(
                     {
                         "claim_id": slug,
                         "name": definition.name,
                         "statement": definition.statement,
+                        "applies_here": bool(
+                            live and live.status in ver.APPLICABLE_STATUSES
+                        ),
+                        "current_status": live.status if live else None,
                         "last_status": latest[0]["status"] if latest else None,
                         "freshness": freshness,
                         "changed_evidence": changed,
                     }
                 )
+            rows.sort(key=lambda r: (not r["applies_here"], r["claim_id"]))
             if as_json:
-                console.print_json(_json.dumps({"schema_version": "1", "claims": rows}))
+                console.print_json(_json.dumps({"schema_version": "2", "claims": rows}))
             else:
                 console.print("[bold]Built-in claims[/bold]\n")
                 for r in rows:
+                    if not r["applies_here"]:
+                        console.print(f"  [dim]{r['claim_id']} (not applicable here)[/dim]")
+                        continue
                     status_txt = r["last_status"] or "never verified"
                     console.print(f"  {r['claim_id']}")
                     console.print(f"    {r['statement']}")
-                    console.print(f"    last status: {status_txt}   freshness: {r['freshness']}")
+                    console.print(
+                        f"    current: {r['current_status']}   "
+                        f"last verified: {status_txt}   freshness: {r['freshness']}"
+                    )
                     for p in r["changed_evidence"]:
                         console.print(f"      changed since verification: {p}", markup=False)
                     console.print("")
             return
 
-        slugs = [claim] if claim else list(ver.BUILTIN_CLAIMS.keys())
-        results = []
-        for slug in slugs:
+        if claim:
             try:
-                result = ver.verify_claim(conn, slug)
+                results = [ver.verify_claim(conn, claim)]
             except KeyError:
-                console.print(f"[red]Unknown claim:[/red] {slug}")
+                console.print(f"[red]Unknown claim:[/red] {claim}")
                 console.print("Run [bold]dtc verify --list[/bold] to see built-in claims.")
                 raise typer.Exit(code=1)
-            ver.save_verification(conn, result)
-            results.append(result)
+        else:
+            results = ver.verify_all(conn)
+
+        # Only real verifications are recorded. A claim that does not apply to
+        # this repository was not verified, so storing it would pollute
+        # freshness and diff impact with claims that have no evidence.
+        for result in results:
+            if result.status in ver.APPLICABLE_STATUSES:
+                ver.save_verification(conn, result)
 
         if as_json:
             console.print_json(
                 _json.dumps(
                     {
-                        "schema_version": "1",
+                        "schema_version": "2",
                         "command": "verify",
                         "results": [r.to_dict() for r in results],
                     }
@@ -149,10 +169,93 @@ def verify(
             )
             return
 
-        for result in results:
-            _print_verification(result)
+        _print_report(results, single=bool(claim))
     finally:
         conn.close()
+
+
+def _print_report(results: list, single: bool) -> None:
+    """Report card: what DevTime can and cannot verify about this repository."""
+    from devtime.intelligence import verification as ver
+
+    applicable = [r for r in results if r.status in ver.APPLICABLE_STATUSES]
+    not_applicable = [r for r in results if r.status == ver.NOT_APPLICABLE]
+
+    for result in applicable:
+        _print_verification(result)
+
+    if not_applicable and not single:
+        console.print("[dim]Not applicable to this repository:[/dim]")
+        for r in not_applicable:
+            reason = r.why[0] if r.why else "No relevant surface was found."
+            console.print(f"  - {r.claim_slug}: {reason}", markup=False)
+        console.print("")
+
+    if single and not applicable:
+        # An explicitly requested claim that does not apply still explains itself.
+        for result in not_applicable:
+            _print_verification(result)
+        return
+
+    if not applicable:
+        _print_nothing_verifiable()
+
+
+def _print_nothing_verifiable() -> None:
+    """Never a dead end: say what was scanned and what would unlock a claim."""
+    from devtime.db import connection
+
+    conn = connection.connect()
+    try:
+        scan = conn.execute(
+            "SELECT id, file_count, signal_count FROM scans WHERE status = 'completed' "
+            "ORDER BY started_at DESC LIMIT 1"
+        ).fetchone()
+        kinds = []
+        if scan:
+            kinds = conn.execute(
+                "SELECT kind, COUNT(*) c FROM signals WHERE scan_id = ? "
+                "GROUP BY kind ORDER BY c DESC LIMIT 6",
+                (scan["id"],),
+            ).fetchall()
+    finally:
+        conn.close()
+
+    console.print("[bold]No built-in claim applies to this repository yet.[/bold]")
+    console.print("")
+    if scan:
+        console.print(
+            f"DevTime scanned {scan['file_count']} files and found "
+            f"{scan['signal_count']} signals.",
+            markup=False,
+        )
+        if kinds:
+            summary = ", ".join(f"{k['kind']}={k['c']}" for k in kinds)
+            console.print(f"Evidence collected: {summary}", markup=False)
+        else:
+            console.print(
+                "No evidence was extracted, which usually means this repository's "
+                "language or framework is outside current scanner coverage.",
+                markup=False,
+            )
+    console.print("")
+    console.print("Built-in claims become verifiable when a repository has:")
+    console.print("  - HTTP routes and tests (route-test-coverage)")
+    console.print("  - admin, staff, or back-office routes (admin-authorization)")
+    console.print("  - JWT usage or a JWT dependency (jwt-authentication)")
+    console.print("  - billing webhooks or a payment provider (billing-webhook-signature)")
+    console.print("")
+    console.print(
+        "This is a coverage limit, not a verdict on your repository. "
+        "Scanner support is strongest on TypeScript, Next.js, Express, and "
+        "FastAPI-style code; see LIMITATIONS.md.",
+        markup=False,
+    )
+    console.print(
+        "If DevTime missed something your repository clearly has, that is worth "
+        "an issue: https://github.com/Shakargy/devtime/issues",
+        markup=False,
+    )
 
 
 def _print_verification(result) -> None:
@@ -161,6 +264,7 @@ def _print_verification(result) -> None:
         "WEAK": "yellow",
         "CONTRADICTED": "red",
         "UNKNOWN": "cyan",
+        "NOT_APPLICABLE": "dim",
     }.get(result.status, "white")
     console.print(f"[bold]{result.claim_name}[/bold]")
     console.print(f"Claim: {result.statement}")

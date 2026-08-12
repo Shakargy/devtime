@@ -72,8 +72,15 @@ do. Read this before trusting any single output.
 
 ## 6b. Verification limitations (experimental)
 
-- Two built-in claims (billing-webhook-signature, jwt-authentication).
-  User-defined claims are not supported yet, deliberately.
+- Four built-in claims (route-test-coverage, admin-authorization,
+  billing-webhook-signature, jwt-authentication). User-defined claims are not
+  supported yet, deliberately.
+- Route test coverage is attributed statically (test imports and route names),
+  not by executing tests. A route exercised only indirectly can be reported as
+  uncovered.
+- Admin authorization reports WEAK when it finds no authorization evidence.
+  That means DevTime found nothing, never that a route is confirmed
+  unprotected: global middleware and framework decorators are not detected.
 - Verification is rule-driven over scanner signals; it inherits every scanner
   coverage limitation listed here.
 - Statuses mean "per DevTime's evidence rules", not formal proof or a security

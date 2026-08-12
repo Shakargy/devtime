@@ -6,19 +6,22 @@ persisted scan evidence and answers with a status, both-sided contradictions,
 missing evidence, coverage limitations, and freshness - never with confidence
 the evidence cannot back.
 
-V0.2 scope, deliberately narrow:
+Scope, deliberately narrow:
   - Built-in claims only (no user-defined claim files yet).
-  - One claim domain: billing webhook signature verification.
-  - Four statuses: SUPPORTED, WEAK, CONTRADICTED, UNKNOWN.
-  - Freshness from file fingerprints: FRESH, STALE, NEEDS_VERIFICATION.
   - Deterministic and rule-driven. No AI, no network, no code execution.
+  - Freshness from file fingerprints: FRESH, STALE, NEEDS_VERIFICATION.
 
 Statuses (documented meaning, per repository evidence policy - not formal proof):
-  SUPPORTED     required behavior evidence exists in the current scan.
-  WEAK          the claim's surface exists, but the proving evidence is missing.
-  CONTRADICTED  credible evidence conflicts with the claim; both sides are shown.
-  UNKNOWN       the repository shows no relevant surface, or coverage cannot
-                responsibly decide.
+  SUPPORTED       required behavior evidence exists in the current scan.
+  WEAK            the claim's surface exists, but the proving evidence is missing.
+  CONTRADICTED    credible evidence conflicts with the claim; both sides are shown.
+  UNKNOWN         the surface exists but coverage cannot responsibly decide.
+  NOT_APPLICABLE  the repository has no surface this claim is about (v0.5.0).
+
+NOT_APPLICABLE matters as much as the others. A repository with no billing code
+is not "unknown" for a billing claim - the claim simply does not apply, and
+saying so plainly is more honest than an ominous UNKNOWN. UNKNOWN is reserved
+for the harder case: the surface exists, but the evidence cannot decide.
 
 Freshness is separate from truth:
   FRESH               supporting evidence files are unchanged since verification.
@@ -41,6 +44,10 @@ SUPPORTED = "SUPPORTED"
 WEAK = "WEAK"
 CONTRADICTED = "CONTRADICTED"
 UNKNOWN = "UNKNOWN"
+NOT_APPLICABLE = "NOT_APPLICABLE"
+
+# Statuses that mean "this claim has something to say about this repository".
+APPLICABLE_STATUSES = (SUPPORTED, WEAK, CONTRADICTED, UNKNOWN)
 
 # Freshness
 FRESH = "FRESH"
@@ -117,8 +124,11 @@ class VerificationResult:
     engine_version: str
 
     def to_dict(self) -> dict:
+        # schema_version 2 (v0.5.0): adds the NOT_APPLICABLE status value. All
+        # version 1 fields are unchanged, so consumers that ignore unknown
+        # status values keep working.
         return {
-            "schema_version": "1",
+            "schema_version": "2",
             "claim_id": self.claim_slug,
             "claim_name": self.claim_name,
             "statement": self.statement,
@@ -154,6 +164,18 @@ BUILTIN_CLAIMS: dict[str, ClaimDefinition] = {
         name="JWT Authentication",
         statement="Authentication uses JWT access tokens.",
         category="authentication",
+    ),
+    "route-test-coverage": ClaimDefinition(
+        slug="route-test-coverage",
+        name="Route Test Coverage",
+        statement="HTTP routes are exercised by tests.",
+        category="testing",
+    ),
+    "admin-authorization": ClaimDefinition(
+        slug="admin-authorization",
+        name="Admin Authorization",
+        statement="Administrative routes require an authorization check.",
+        category="security",
     ),
 }
 
@@ -210,6 +232,23 @@ def _is_billingish(hay: str) -> bool:
 # The engine
 # --------------------------------------------------------------------------- #
 
+def _no_scan_result(definition: ClaimDefinition) -> VerificationResult:
+    return VerificationResult(
+        claim_slug=definition.slug,
+        claim_name=definition.name,
+        statement=definition.statement,
+        status=UNKNOWN,
+        why=["No completed scan exists. Run dtc scan first."],
+        supporting=[],
+        contradictions=[],
+        missing=["A completed repository scan."],
+        limitations=_LIMITATIONS,
+        scan_id=None,
+        verified_at=_now(),
+        engine_version=__version__,
+    )
+
+
 def verify_claim(conn: sqlite3.Connection, slug: str) -> VerificationResult:
     """Verify one built-in claim against the latest completed scan."""
     definition = BUILTIN_CLAIMS.get(slug)
@@ -218,24 +257,31 @@ def verify_claim(conn: sqlite3.Connection, slug: str) -> VerificationResult:
 
     scan_id = _latest_scan_id(conn)
     if scan_id is None:
-        return VerificationResult(
-            claim_slug=definition.slug,
-            claim_name=definition.name,
-            statement=definition.statement,
-            status=UNKNOWN,
-            why=["No completed scan exists. Run dtc scan first."],
-            supporting=[],
-            contradictions=[],
-            missing=["A completed repository scan."],
-            limitations=_LIMITATIONS,
-            scan_id=None,
-            verified_at=_now(),
-            engine_version=__version__,
-        )
+        return _no_scan_result(definition)
 
     rows = _load_signals(conn, scan_id)
-    evaluator = _EVALUATORS[slug]
-    return evaluator(definition, rows, scan_id)
+    return _EVALUATORS[slug](definition, rows, scan_id)
+
+
+def verify_all(conn: sqlite3.Connection) -> list[VerificationResult]:
+    """Verify every built-in claim, loading scan evidence exactly once.
+
+    Applicable results (something to say about this repository) sort first, so
+    the first thing a user reads is what DevTime actually found.
+    """
+    scan_id = _latest_scan_id(conn)
+    if scan_id is None:
+        return [_no_scan_result(d) for d in BUILTIN_CLAIMS.values()]
+
+    rows = _load_signals(conn, scan_id)
+    results = [
+        _EVALUATORS[slug](definition, rows, scan_id)
+        for slug, definition in BUILTIN_CLAIMS.items()
+    ]
+    # Contradictions first: they are the findings a user most needs to see.
+    order = {CONTRADICTED: 0, SUPPORTED: 1, WEAK: 2, UNKNOWN: 3, NOT_APPLICABLE: 4}
+    results.sort(key=lambda r: (order.get(r.status, 9), r.claim_slug))
+    return results
 
 
 def _verify_billing_webhook_signature(
@@ -335,12 +381,12 @@ def _verify_billing_webhook_signature(
         if not signature_tests:
             missing.append("A test that exercises webhook signature verification.")
     else:
-        status = UNKNOWN
-        why.append(
-            "No billing webhook surface was found in the scanned files. "
-            "The claim does not apply, or the surface is outside scanner coverage."
+        return _not_applicable(
+            definition,
+            scan_id,
+            "No billing webhook surface was found in the scanned files.",
+            "A billing webhook route, handler, or payment provider dependency.",
         )
-        missing.append("Any billing webhook route, handler, or provider dependency.")
 
     return VerificationResult(
         claim_slug=definition.slug,
@@ -458,12 +504,12 @@ def _verify_jwt_authentication(
         )
         missing.append("JWT access-token usage (login/bearer/authorization context).")
     else:
-        status = UNKNOWN
-        why.append(
-            "No JWT evidence was found in the scanned files. The claim does not "
-            "apply, or the usage is outside scanner coverage."
+        return _not_applicable(
+            definition,
+            scan_id,
+            "No JWT evidence was found in the scanned files.",
+            "JWT usage, a JWT library dependency, or documentation referencing JWT.",
         )
-        missing.append("Any JWT usage, dependency, or documentation.")
 
     return VerificationResult(
         claim_slug=definition.slug,
@@ -481,9 +527,310 @@ def _verify_jwt_authentication(
     )
 
 
+# --------------------------------------------------------------------------- #
+# Route test coverage (v0.5.0)
+# --------------------------------------------------------------------------- #
+
+# Route path segments that carry no identity and must not be used for matching.
+_GENERIC_SEGMENTS = {"api", "v1", "v2", "v3", "app", "index", "route", "routes", "src"}
+
+
+def _module_token(path: str) -> str:
+    """The distinctive file stem of an implementation file, lowercased."""
+    stem = path.rsplit("/", 1)[-1]
+    for suffix in (".ts", ".tsx", ".js", ".jsx", ".py", ".mjs", ".cjs"):
+        if stem.endswith(suffix):
+            stem = stem[: -len(suffix)]
+            break
+    return stem.lower()
+
+
+def _route_tokens(route_path: str) -> list[str]:
+    """Distinctive, non-generic segments of a route path."""
+    out = []
+    for seg in route_path.lower().replace("\\", "/").split("/"):
+        seg = seg.strip()
+        if not seg or seg.startswith(("[", ":", "{", "<")) or seg in _GENERIC_SEGMENTS:
+            continue
+        if len(seg) < 3:
+            continue
+        out.append(seg)
+    return out
+
+
+def _verify_route_test_coverage(
+    definition: ClaimDefinition, rows: list[sqlite3.Row], scan_id: str
+) -> VerificationResult:
+    """Verify that HTTP routes are exercised by tests.
+
+    Matching is deliberately conservative and explainable. A route counts as
+    covered when a test file either imports the route's implementation module,
+    or names a distinctive segment of the route path. Test files are aggregated
+    first so the comparison stays linear in test FILES, not test cases (large
+    repos have thousands of test cases across a few dozen files).
+
+    Absence of tests is missing evidence, never a contradiction.
+    """
+    # Aggregate tests per file: imports + a single blob of test names.
+    test_imports: dict[str, set[str]] = {}
+    test_blobs: dict[str, list[str]] = {}
+    for row in rows:
+        if row["kind"] != "test":
+            continue
+        try:
+            meta = json.loads(row["metadata_json"] or "{}")
+        except json.JSONDecodeError:
+            meta = {}
+        if meta.get("e2e"):
+            # E2E specs match by accident (Reality Validation finding); they are
+            # weak evidence for concepts and unreliable for route attribution.
+            continue
+        path = row["path"]
+        imports = test_imports.setdefault(path, set())
+        for imp in meta.get("imports") or []:
+            imports.add(str(imp).lower())
+        test_blobs.setdefault(path, []).append(str(row["name"] or "").lower())
+
+    # One joined blob per test file keeps matching linear in test FILES and turns
+    # each check into a single substring scan.
+    test_name_blob = {p: " ".join(names) for p, names in test_blobs.items()}
+    test_import_blob = {p: " ".join(sorted(i)) for p, i in test_imports.items()}
+
+    # Deduplicate routes: several methods on one path are one surface to cover.
+    routes: dict[tuple[str, str], sqlite3.Row] = {}
+    for row in rows:
+        if row["kind"] != "route":
+            continue
+        try:
+            meta = json.loads(row["metadata_json"] or "{}")
+        except json.JSONDecodeError:
+            meta = {}
+        route_path = str(meta.get("path") or row["name"] or "").strip()
+        routes.setdefault((row["path"], route_path.lower()), row)
+
+    if not routes:
+        return _not_applicable(
+            definition,
+            scan_id,
+            "No HTTP routes were found in the scanned files.",
+            "Any HTTP route (Express, Next.js, or FastAPI style).",
+        )
+
+    covered: list[tuple[str, str, str]] = []  # (impl path, route path, reason)
+    uncovered: list[tuple[str, str]] = []
+    for (impl_path, route_path), row in sorted(routes.items()):
+        token = _module_token(impl_path)
+        reason = ""
+        # 1. A test that imports the implementation module.
+        if token and len(token) >= 3:
+            for test_path, blob in test_import_blob.items():
+                if token in blob:
+                    reason = f"{test_path} imports {token}"
+                    break
+        # 2. A test whose names mention a distinctive segment of the route path.
+        if not reason:
+            segments = _route_tokens(route_path)
+            for test_path, blob in test_name_blob.items():
+                if segments and any(seg in blob for seg in segments):
+                    reason = f"{test_path} names {segments[0]}"
+                    break
+        if reason:
+            covered.append((impl_path, route_path, reason))
+        else:
+            uncovered.append((impl_path, route_path))
+
+    total = len(routes)
+    n_covered = len(covered)
+    # Evidence is bounded (responses and stored fingerprints must stay bounded),
+    # and truncation is disclosed below rather than hidden.
+    _EVIDENCE_CAP = 25
+    sha_by_path = {row["path"]: row["sha256"] for row in rows}
+    supporting = [
+        EvidenceRef(
+            path=impl,
+            observation=f"Route {route or impl} is referenced by a test ({reason}).",
+            kind="route",
+            strength="moderate",
+            sha256=sha_by_path.get(impl),
+        )
+        for impl, route, reason in covered[:_EVIDENCE_CAP]
+    ]
+
+    why = [f"{n_covered} of {total} routes have a referencing test."]
+    missing: list[str] = []
+    if n_covered == total:
+        status = SUPPORTED
+        why.append("Every detected route has at least one test referencing it.")
+    else:
+        status = WEAK
+        why.append(
+            "Routes without a referencing test are not proven to be exercised."
+        )
+        shown = [r or p for p, r in uncovered[:8]]
+        missing.append(
+            f"Tests referencing {total - n_covered} route(s): " + ", ".join(shown)
+            + (" ..." if len(uncovered) > 8 else "")
+        )
+
+    limitations = _LIMITATIONS + [
+        "Coverage is attributed by test imports and route names, not by executing "
+        "tests; a route exercised only indirectly may be reported as uncovered.",
+        "End-to-end specs are excluded from attribution because they match by "
+        "accident.",
+    ]
+    if len(covered) > _EVIDENCE_CAP:
+        limitations.append(
+            f"Evidence is capped at {_EVIDENCE_CAP} routes; freshness tracks only "
+            f"those recorded files, not all {len(covered)} covered routes."
+        )
+    return VerificationResult(
+        claim_slug=definition.slug,
+        claim_name=definition.name,
+        statement=definition.statement,
+        status=status,
+        why=why,
+        supporting=supporting,
+        contradictions=[],
+        missing=missing,
+        limitations=limitations,
+        scan_id=scan_id,
+        verified_at=_now(),
+        engine_version=__version__,
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Admin authorization (v0.5.0)
+# --------------------------------------------------------------------------- #
+
+_ADMIN_TOKENS = ("admin", "superuser", "staff", "backoffice", "back-office")
+_AUTHZ_TOKENS = (
+    "requireadmin", "require_admin", "isadmin", "is_admin", "adminonly",
+    "admin_only", "hasrole", "has_role", "authorize", "authorization",
+    "permission", "rbac", "requireauth", "require_auth", "isauthenticated",
+    "current_user", "get_current_user", "authmiddleware", "auth_middleware",
+)
+
+
+def _verify_admin_authorization(
+    definition: ClaimDefinition, rows: list[sqlite3.Row], scan_id: str
+) -> VerificationResult:
+    """Verify that administrative routes require an authorization check.
+
+    Honesty rule for this claim: a missing authorization signal is WEAK, never
+    CONTRADICTED. Authorization can be applied globally, by a decorator, or by a
+    wrapper the scanner cannot see. Telling someone their admin endpoint is
+    unprotected when it is not would destroy the trust this tool is built on.
+    """
+    admin_routes: list[sqlite3.Row] = []
+    authz_files: set[str] = set()
+    authz_rows: list[sqlite3.Row] = []
+
+    for row in rows:
+        hay = _hay(row)
+        kind = row["kind"]
+        if kind == "route" and any(t in hay for t in _ADMIN_TOKENS):
+            admin_routes.append(row)
+        if kind in ("middleware", "auth_dependency") or any(
+            t in hay for t in _AUTHZ_TOKENS
+        ):
+            if kind in ("middleware", "auth_dependency", "route", "test"):
+                authz_files.add(row["path"])
+                if kind in ("middleware", "auth_dependency"):
+                    authz_rows.append(row)
+
+    if not admin_routes:
+        return _not_applicable(
+            definition,
+            scan_id,
+            "No administrative routes were found in the scanned files.",
+            "An admin, staff, or back-office route.",
+        )
+
+    protected: list[sqlite3.Row] = []
+    unprotected: list[sqlite3.Row] = []
+    for row in admin_routes:
+        hay = _hay(row)
+        # Authorization evidence in the route's own file, or in the route itself.
+        if row["path"] in authz_files or any(t in hay for t in _AUTHZ_TOKENS):
+            protected.append(row)
+        else:
+            unprotected.append(row)
+
+    supporting = [
+        _ref(r, "Admin route shows an authorization check in its file.", "moderate")
+        for r in protected[:5]
+    ] + [
+        _ref(r, "Authorization middleware or dependency.", "moderate")
+        for r in authz_rows[:2]
+    ]
+
+    total = len(admin_routes)
+    why = [f"{len(protected)} of {total} administrative route(s) show an "
+           "authorization check."]
+    missing: list[str] = []
+
+    if not unprotected:
+        status = SUPPORTED
+        why.append("Every detected admin route has authorization evidence.")
+    else:
+        status = WEAK
+        why.append(
+            "No authorization evidence was found for the remaining admin route(s). "
+            "This is missing evidence, not proof that they are unprotected."
+        )
+        missing.append(
+            "Authorization evidence for: "
+            + ", ".join(sorted({r["path"] for r in unprotected})[:6])
+        )
+
+    limitations = _LIMITATIONS + [
+        "Authorization applied globally (a server-wide middleware, a router "
+        "mount, or a framework decorator the scanner does not parse) is not "
+        "detected. A WEAK result means DevTime found no evidence, never that a "
+        "route is confirmed unprotected.",
+    ]
+    return VerificationResult(
+        claim_slug=definition.slug,
+        claim_name=definition.name,
+        statement=definition.statement,
+        status=status,
+        why=why,
+        supporting=supporting,
+        contradictions=[],
+        missing=missing,
+        limitations=limitations,
+        scan_id=scan_id,
+        verified_at=_now(),
+        engine_version=__version__,
+    )
+
+
+def _not_applicable(
+    definition: ClaimDefinition, scan_id: str, reason: str, would_need: str
+) -> VerificationResult:
+    """This claim has no surface in this repository. Say so plainly."""
+    return VerificationResult(
+        claim_slug=definition.slug,
+        claim_name=definition.name,
+        statement=definition.statement,
+        status=NOT_APPLICABLE,
+        why=[reason, "This claim does not apply to this repository."],
+        supporting=[],
+        contradictions=[],
+        missing=[f"Would become verifiable with: {would_need}"],
+        limitations=_LIMITATIONS,
+        scan_id=scan_id,
+        verified_at=_now(),
+        engine_version=__version__,
+    )
+
+
 _EVALUATORS = {
     "billing-webhook-signature": _verify_billing_webhook_signature,
     "jwt-authentication": _verify_jwt_authentication,
+    "route-test-coverage": _verify_route_test_coverage,
+    "admin-authorization": _verify_admin_authorization,
 }
 
 
