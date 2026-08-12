@@ -165,7 +165,7 @@ Anything outside these six is out of scope for V0. See [LIMITATIONS.md](LIMITATI
 | `dtc context <concept>` | Create a governed Context Pack for agents or humans. |
 | `dtc risk --diff` | Review a git diff for risky changes using local evidence (advisory). |
 | `dtc decision add` | Add a local decision record that can reduce uncertainty. |
-| `dtc verify [claim]` | Verify a repository claim against evidence: status, contradictions, freshness (experimental). |
+| `dtc verify [claim]` | Verify repository claims against evidence: status, contradictions, freshness (experimental). |
 
 (Also available: `dtc evidence`, `dtc debt`, `dtc status`, `dtc doctor --privacy`,
 `dtc export`, `dtc reset`, `dtc mcp start`.)
@@ -266,9 +266,12 @@ changes:
 
 ![dtc verify demo - a claim goes from SUPPORTED to CONTRADICTED to STALE](assets/devtime-verify-demo.svg)
 
-Statuses are SUPPORTED, WEAK, CONTRADICTED, or UNKNOWN; contradictions always
-show both sides; changed evidence marks a claim STALE. Two built-in claims ship
-(billing webhook signatures, JWT authentication). See **[VERIFICATION.md](VERIFICATION.md)**.
+Statuses are SUPPORTED, WEAK, CONTRADICTED, UNKNOWN, or NOT_APPLICABLE;
+contradictions always show both sides; changed evidence marks a claim STALE.
+Four built-in claims ship: route test coverage, admin authorization, billing
+webhook signatures, and JWT authentication. `dtc verify` leads with what it can
+actually verify here, and when nothing applies it says what would make a claim
+verifiable instead of dead-ending. See **[VERIFICATION.md](VERIFICATION.md)**.
 
 ## Example output
 

@@ -52,14 +52,32 @@ class McpDependencyMissing(RuntimeError):
     INSTALL_HINT = 'MCP support needs the optional dependency: pip install "devtime-ei[mcp]"'
 
 
-def build_server():
-    """Build the FastMCP server with the read-only tool surface registered."""
-    try:
+def _server_class():
+    """Return the SDK's server class across MCP SDK generations.
+
+    The SDK renamed its high-level server in 2.0: `mcp.server.fastmcp.FastMCP`
+    became `mcp.server.MCPServer`. Both expose the surface DevTime uses (a
+    `tool()` decorator, async `list_tools`/`call_tool`, and a stdio `run`), so
+    both are supported rather than pinning users to one generation.
+    """
+    try:  # MCP SDK 2.x
+        from mcp.server import MCPServer
+
+        return MCPServer
+    except ImportError:
+        pass
+    try:  # MCP SDK 1.x
         from mcp.server.fastmcp import FastMCP
+
+        return FastMCP
     except ImportError as exc:  # pragma: no cover - exercised via CLI test
         raise McpDependencyMissing(McpDependencyMissing.INSTALL_HINT) from exc
 
-    server = FastMCP(SERVER_NAME, instructions=SERVER_INSTRUCTIONS)
+
+def build_server():
+    """Build the MCP server with the read-only tool surface registered."""
+    server_class = _server_class()
+    server = server_class(name=SERVER_NAME, instructions=SERVER_INSTRUCTIONS)
 
     @server.tool()
     def list_concepts(limit: int = 50) -> list[dict] | dict:
@@ -100,11 +118,14 @@ def build_server():
     def verify_claim(claim_id: str = "") -> dict:
         """Verify a repository claim against scanned evidence (read-only compute).
 
-        Returns status (SUPPORTED / WEAK / CONTRADICTED / UNKNOWN), why,
-        supporting evidence with file paths, both-sided contradictions, missing
-        evidence, and coverage limitations. Call with no claim_id to list the
-        built-in claims. Results are computed fresh and NOT persisted (this
-        server stays read-only); use `dtc verify` in a terminal to record one.
+        Returns status (SUPPORTED / WEAK / CONTRADICTED / UNKNOWN /
+        NOT_APPLICABLE), why, supporting evidence with file paths, both-sided
+        contradictions, missing evidence, and coverage limitations.
+        NOT_APPLICABLE means the repository has no surface this claim is about,
+        which is different from UNKNOWN (surface exists, evidence cannot
+        decide). Call with no claim_id to list the built-in claims. Results are
+        computed fresh and NOT persisted (this server stays read-only); use
+        `dtc verify` in a terminal to record one.
         """
         if not paths.is_initialized():
             return _NOT_INITIALIZED

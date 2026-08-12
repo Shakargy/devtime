@@ -89,3 +89,18 @@ def test_cli_mcp_preview_shows_implemented_tools():
     for tool in IMPLEMENTED_TOOLS:
         assert tool in result.stdout
     assert "read-only" in result.stdout
+
+
+def test_server_class_resolves_across_sdk_generations():
+    """The SDK renamed FastMCP to MCPServer in 2.0.
+
+    mcp 2.0.0 removed `mcp.server.fastmcp`, which broke every fresh install of
+    devtime-ei[mcp]. Both generations must resolve, and the resolved class must
+    expose the surface DevTime relies on.
+    """
+    from devtime.mcp.transport import _server_class
+
+    cls = _server_class()
+    assert cls.__name__ in ("MCPServer", "FastMCP")
+    for attr in ("tool", "list_tools", "call_tool", "run"):
+        assert hasattr(cls, attr), f"server class is missing {attr}"
