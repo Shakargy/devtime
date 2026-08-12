@@ -68,6 +68,17 @@ This is a coverage limit, not a verdict on your repository.
 
 `dtc verify --list` now shows which claims apply to the current repository.
 
+## Fixed: MCP SDK 2.0 broke every fresh install
+
+The MCP Python SDK released 2.0.0, which removed `mcp.server.fastmcp`. Any new
+`pipx install "devtime-ei[mcp]"` resolved to the new SDK and could not start the
+server at all. DevTime now supports both SDK generations (`MCPServer` in 2.x,
+`FastMCP` in 1.x), verified against both, with a regression test so a future
+rename cannot pass silently.
+
+If you installed the MCP extra recently and `dtc mcp start` failed, this
+release fixes it.
+
 ## Compatibility
 
 - JSON output is `schema_version: 2`. Every version 1 field is unchanged; the
