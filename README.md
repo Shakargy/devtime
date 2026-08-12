@@ -1,16 +1,16 @@
 # DevTime
 
-**Local-first Engineering Intelligence for software repositories.**
+**DevTime verifies what your repository can actually prove.**
 
-DevTime helps a codebase explain itself from evidence.
-
-It scans code, tests, configs, routes, and decisions to identify supported software
-concepts, link claims to files, surface uncertainty, and warn about a narrow set of
-risky changes.
+A file named `stripe/webhook.ts` looks like proof that a repo handles Stripe
+webhooks. It might be a handler that only returns 404. DevTime checks statements
+about a repository against its implementation, tests, configuration, and recorded
+decisions, then reports what is supported, what is contradicted, what is missing,
+and what went stale.
 
 > No cloud. No telemetry. No code execution. No AI required.
 
-![DevTime terminal demo - install, scan, and explain a repo from evidence](assets/devtime-terminal-demo.svg)
+![DevTime verify demo - a claim goes from SUPPORTED to CONTRADICTED to STALE](assets/devtime-verify-demo.svg)
 
 Prefer video? [Watch the 2-minute demo](https://youtu.be/1Hiu3Y9J_SI): DevTime scans
 a repo locally, explains concepts from evidence, surfaces uncertainty, catches a
@@ -26,8 +26,16 @@ dtc demo init
 cd devtime-demo-saas
 dtc init
 dtc scan
-dtc concepts
-dtc explain "Billing Webhooks"
+dtc verify
+```
+
+On the demo repo that ends with signature verification SUPPORTED, JWT
+authentication SUPPORTED, and `2 of 3 routes have a referencing test`. Point it at
+your own repository and the answers change:
+
+```bash
+cd your-repo
+dtc init && dtc scan && dtc verify
 ```
 
 The PyPI distribution is `devtime-ei`. The Python package remains `devtime`, and the
@@ -76,6 +84,39 @@ dtc risk --diff
 A full, copy-pasteable walkthrough (including the risk-diff and corroborated-decision
 steps) is in **[DEMO_SCRIPT.md](DEMO_SCRIPT.md)**.
 
+## Verify claims (experimental)
+
+A claim is a statement about the repository. Verification answers it with a
+status and receipts, never with confidence the evidence cannot back.
+
+```text
+Status: CONTRADICTED
+
+Contradictions:
+  - The billing webhook endpoint cannot verify signatures
+    because it is a disabled stub.
+      claimed:  pages/api/stripe/webhook.ts is named and routed
+                as a billing webhook endpoint.
+      observed: The handler's only behavior is a 404/501 response.
+```
+
+- **SUPPORTED** - required behavior evidence exists in the current scan
+- **WEAK** - the surface exists, but the proving evidence is missing
+- **CONTRADICTED** - credible evidence conflicts with the claim, both sides shown
+- **UNKNOWN** - the surface exists but coverage cannot responsibly decide
+- **NOT_APPLICABLE** - the repository has no surface this claim is about
+
+Four built-in claims ship: route test coverage, admin authorization, billing
+webhook signatures, and JWT authentication. `dtc verify` leads with what it can
+actually verify in your repository, and when nothing applies it says what would
+make a claim verifiable instead of dead-ending.
+
+Truth and freshness are separate: when a file behind a verified claim changes,
+the claim goes STALE and names the file. `dtc risk --diff` reports which verified
+claims a diff destabilizes.
+
+See **[VERIFICATION.md](VERIFICATION.md)** for the full model and its limits.
+
 ## Why this exists
 
 Git records what changed, but it does not preserve the reasoning behind those
@@ -103,6 +144,7 @@ It is especially useful if you:
 
 Questions DevTime helps answer include:
 
+- Can this repository actually prove the thing its file names imply?
 - Where is authentication actually implemented?
 - What files prove that Billing Webhooks exist?
 - What is still uncertain?
@@ -111,17 +153,25 @@ Questions DevTime helps answer include:
 
 ## What DevTime does
 
+- Verifies claims about a repository and reports status, evidence, and both sides
+  of any contradiction.
+- Tracks freshness, so a verified claim goes stale when the evidence behind it changes.
 - Detects concepts from routes, tests, configs, dependencies, and docs.
 - Explains from evidence by linking claims to files and signals.
 - Surfaces uncertainty when evidence is missing or weak.
 - Scores understanding with an Understanding Score and Understanding Debt label.
-- Reviews narrow risky diffs with advisory findings from local memory.
+- Reviews narrow risky diffs with advisory findings, including which verified
+  claims a diff destabilizes.
 - Records decisions locally so rationale can reduce uncertainty when corroborated by code.
 
 ## Supported concepts
 
-V0 detects six supported concept families. It does not discover arbitrary domain
-concepts yet:
+Underneath verification is a scanner that builds local, evidence-backed memory:
+
+![DevTime terminal demo - install, scan, and explain a repo from evidence](assets/devtime-terminal-demo.svg)
+
+DevTime detects six supported concept families. It does not discover arbitrary
+domain concepts yet:
 
 - Authentication
 - Billing Webhooks
@@ -130,7 +180,7 @@ concepts yet:
 - Admin Permissions
 - File Uploads
 
-Anything outside these six is out of scope for V0. See [LIMITATIONS.md](LIMITATIONS.md).
+Anything outside these six is out of scope for now. See [LIMITATIONS.md](LIMITATIONS.md).
 
 ## What DevTime does not do
 
@@ -256,22 +306,6 @@ python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
 ```
-
-## Verify claims (experimental)
-
-DevTime is growing into a verification layer: ask whether a statement about the
-repository is actually supported. Watch a claim live through its whole life -
-supported, contradicted by a stub, restored, and stale after the evidence
-changes:
-
-![dtc verify demo - a claim goes from SUPPORTED to CONTRADICTED to STALE](assets/devtime-verify-demo.svg)
-
-Statuses are SUPPORTED, WEAK, CONTRADICTED, UNKNOWN, or NOT_APPLICABLE;
-contradictions always show both sides; changed evidence marks a claim STALE.
-Four built-in claims ship: route test coverage, admin authorization, billing
-webhook signatures, and JWT authentication. `dtc verify` leads with what it can
-actually verify here, and when nothing applies it says what would make a claim
-verifiable instead of dead-ending. See **[VERIFICATION.md](VERIFICATION.md)**.
 
 ## Example output
 
