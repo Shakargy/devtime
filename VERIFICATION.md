@@ -49,12 +49,20 @@ same time: the last verification supported it, but its evidence changed since.
 
 | Freshness | Meaning |
 |-----------|---------|
-| FRESH | Evidence files are unchanged since the last verification. |
-| STALE | At least one evidence file changed or disappeared. Re-verify. |
-| NEEDS_VERIFICATION | The claim has never been verified in this repository. |
+| FRESH | Every dependency is unchanged since the last verification. |
+| STALE | A dependency changed, disappeared, or the claim's surface set changed. |
+| NEEDS_VERIFICATION | Never verified here, or nothing was recorded to justify it. |
 
-Freshness only tracks files that were evidence for the claim. Unrelated changes
-never mark a claim stale.
+Freshness is computed from a claim's **dependencies**, which are not the same as
+the evidence displayed to you. Displayed evidence is a bounded selection; the
+dependency set is complete and includes the test files, guards, and helpers that
+justified the conclusion. A claim about a set (for example "all routes") also
+depends on that set, so a newly added route invalidates it even though no
+recorded file changed.
+
+Only a claim's own dependencies participate, so unrelated edits never mark it
+stale. A result that recorded no dependencies is reported as
+NEEDS_VERIFICATION rather than assumed fresh.
 
 NOT_APPLICABLE matters as much as the others. A repository with no billing code
 is not "unknown" for a billing claim; the claim simply does not apply, and saying
@@ -63,13 +71,17 @@ so plainly is more useful than an ominous UNKNOWN.
 ## Built-in claims
 
 - **route-test-coverage** (id kept for compatibility; now presented as *Route
-  Test Association*) - "HTTP routes have tests that import their
-  implementation." Association is established from test imports only, matched on
-  exact module stems so `users` does not match `superusers`. Route identity keeps
-  the HTTP method. A test that merely shares a word with a route path is reported
-  as an unverified suggestion and can never raise the status. Routes defined in
-  test, example, or fixture files are not application surface and are excluded
-  from the inventory. A static association is not execution coverage.
+  Test Association*) - "HTTP routes are referenced by tests that request or
+  import them." Two evidence levels are accepted: a test that requests the exact
+  route path (supertest, FastAPI TestClient), or a test that imports the route's
+  implementation module, matched on exact module stems so `users` does not match
+  `superusers`. Route identity keeps the HTTP method, so a GET test establishes
+  nothing about POST on the same path. A test that merely shares a word with a
+  route path is reported as an unverified suggestion and can never raise the
+  status. Routes declared relative to an unresolved mount prefix are reported as
+  unresolved rather than untested. Routes defined in test, example, or fixture
+  files are excluded from the inventory. A static association is not execution
+  coverage.
 - **admin-authorization** (v0.5) - "Administrative routes require an
   authorization check." Authorization is established only from a guard applied at
   the route's own call site. Authentication is not authorization: `requireAuth`
@@ -119,6 +131,23 @@ claims that do not apply and why.
 When no claim applies, DevTime does not dead-end. It reports what it scanned,
 what evidence it collected, what would make a claim verifiable, and states
 plainly that this is a coverage limit rather than a verdict on your code.
+
+## Scan freshness (v0.6)
+
+Verification recomputes conclusions from the last persisted scan, which is not
+the same thing as your working tree. When the two disagree, DevTime says so
+before showing any result:
+
+```text
+These results were computed from a scan that no longer matches your working tree.
+  changed since the scan: src/billing/stripe-webhook.ts
+Run dtc scan to verify against current code.
+```
+
+JSON output carries the same facts under `evidence_snapshot` (scan id, scan
+time, files scanned, and the working-tree relationship), and the MCP
+`verify_claim` tool adds an explicit `staleness_warning` so an agent that cannot
+see your files is told which snapshot it is reasoning about.
 
 ## Trust model
 

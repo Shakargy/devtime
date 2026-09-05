@@ -1,6 +1,6 @@
 """DevTime - local-first Engineering Intelligence for repository memory."""
 
-__version__ = "0.5.1"
+__version__ = "0.6.0"
 
 # Version metadata (Builder Edition, Chapter 20).
 EVIDENCE_MODEL = "2026.06.1"
