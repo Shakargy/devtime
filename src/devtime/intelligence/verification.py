@@ -32,6 +32,7 @@ Freshness is separate from truth:
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import uuid
 from dataclasses import dataclass, field
@@ -165,10 +166,12 @@ BUILTIN_CLAIMS: dict[str, ClaimDefinition] = {
         statement="Authentication uses JWT access tokens.",
         category="authentication",
     ),
+    # Slug kept for compatibility; the name and statement no longer claim
+    # execution coverage, which static association cannot establish (v0.5.1).
     "route-test-coverage": ClaimDefinition(
         slug="route-test-coverage",
-        name="Route Test Coverage",
-        statement="HTTP routes are exercised by tests.",
+        name="Route Test Association",
+        statement="HTTP routes have tests that import their implementation.",
         category="testing",
     ),
     "admin-authorization": ClaimDefinition(
@@ -216,12 +219,56 @@ def _load_signals(conn: sqlite3.Connection, scan_id: str) -> list[sqlite3.Row]:
     ).fetchall()
 
 
+def _meta(row: sqlite3.Row) -> dict:
+    try:
+        return json.loads(row["metadata_json"] or "{}")
+    except json.JSONDecodeError:
+        return {}
+
+
+def _route_label(row: sqlite3.Row) -> str:
+    """Human-facing route identity: method, path, and file."""
+    meta = _meta(row)
+    name = row["name"] or meta.get("path") or "route"
+    return f"{name} ({row['path']})"
+
+
 def _hay(row: sqlite3.Row) -> str:
     return " ".join(
         str(x).lower()
         for x in (row["name"], row["value"], row["path"], row["metadata_json"])
         if x is not None
     )
+
+
+def _is_test_path(path: str) -> bool:
+    low = (path or "").lower().replace("\\", "/")
+    if ".test." in low or ".spec." in low or "_test." in low:
+        return True
+    segments = low.split("/")
+    return any(
+        seg in ("test", "tests", "__tests__", "spec", "specs", "e2e")
+        for seg in segments[:-1]
+    )
+
+
+# Directories whose routes are illustrations or fixtures, not application surface.
+_NON_APP_SEGMENTS = ("examples", "example", "samples", "demo", "demos",
+                     "fixtures", "benchmarks", "docs")
+
+
+def _is_non_app_path(path: str) -> bool:
+    """True for test, example, fixture, and benchmark code.
+
+    A route defined in a test or an example is not part of the application's
+    HTTP surface, so it does not belong in an inventory of routes that ought to
+    have tests (v0.5.1: express reported 142 such "routes", nearly all of them
+    from its own test/ and examples/ directories).
+    """
+    low = (path or "").lower().replace("\\", "/")
+    if _is_test_path(low):
+        return True
+    return any(seg in _NON_APP_SEGMENTS for seg in low.split("/")[:-1])
 
 
 def _is_billingish(hay: str) -> bool:
@@ -287,6 +334,13 @@ def verify_all(conn: sqlite3.Connection) -> list[VerificationResult]:
 def _verify_billing_webhook_signature(
     definition: ClaimDefinition, rows: list[sqlite3.Row], scan_id: str
 ) -> VerificationResult:
+    # v0.5.1: signature verification must be connected to a webhook handler.
+    # Previously a verification helper anywhere in the repository - even one
+    # nothing called - supported the claim for every webhook endpoint.
+    verify_files: set[str] = set()  # non-test files containing a verification call
+    verification_rows: list[sqlite3.Row] = []
+    webhook_route_rows: list[sqlite3.Row] = []
+
     verifications: list[EvidenceRef] = []
     webhook_routes: list[EvidenceRef] = []
     stub_webhooks: list[EvidenceRef] = []
@@ -298,10 +352,14 @@ def _verify_billing_webhook_signature(
         kind = row["kind"]
 
         if kind == "webhook_signature_verification":
+            verification_rows.append(row)
+            if not _is_test_path(row["path"]):
+                verify_files.add(row["path"])
             verifications.append(
                 _ref(row, "Verifies the provider's webhook signature.", "strong")
             )
         elif kind == "route" and "webhook" in hay and _is_billingish(hay):
+            webhook_route_rows.append(row)
             webhook_routes.append(
                 _ref(row, "Billing webhook route is handled here.", "moderate")
             )
@@ -327,6 +385,84 @@ def _verify_billing_webhook_signature(
     missing: list[str] = []
     contradictions: list[Contradiction] = []
     supporting: list[EvidenceRef] = []
+
+    # Connect each webhook handler to verification in its own file.
+    connected = [r for r in webhook_route_rows if r["path"] in verify_files]
+    unconnected = [r for r in webhook_route_rows if r["path"] not in verify_files]
+    # A verification call that no webhook handler is connected to.
+    orphan_verifications = sorted(
+        verify_files - {r["path"] for r in webhook_route_rows}
+    )
+
+    if webhook_route_rows:
+        n_total = len(webhook_route_rows)
+        n_connected = len(connected)
+        supporting = [
+            _ref(
+                r,
+                "Webhook handler verifies the provider's signature in this file.",
+                "strong",
+            )
+            for r in connected[:6]
+        ] + signature_tests[:2]
+        why.append(
+            f"{n_connected} of {n_total} billing webhook handler(s) verify a "
+            "provider signature in the handler's own file."
+        )
+        if unconnected:
+            why.append(
+                "The remaining handler(s) have no signature verification connected "
+                "to them. This is missing evidence, not proof they are unverified."
+            )
+            missing.append(
+                "Signature verification connected to: "
+                + ", ".join(sorted({_route_label(r) for r in unconnected})[:6])
+            )
+        if orphan_verifications:
+            why.append(
+                "Signature verification exists in "
+                + ", ".join(orphan_verifications[:3])
+                + " but no webhook handler there was resolved, so it does not "
+                "establish protection for the handlers above."
+            )
+        for stub in stub_webhooks:
+            contradictions.append(
+                Contradiction(
+                    summary="One webhook endpoint is a disabled stub.",
+                    claimed_side=f"{stub.path} is routed as a billing webhook.",
+                    observed_side="Its only behavior is a 404/501 response. This "
+                    "shows the endpoint is disabled; it is not evidence of a "
+                    "runtime vulnerability.",
+                    evidence=[stub],
+                )
+            )
+        status = SUPPORTED if n_connected == n_total else WEAK
+        if not signature_tests:
+            missing.append("A test that exercises webhook signature verification.")
+        limitations = [
+            "Signature verification is connected to a handler when both appear in "
+            "the same file. Verification reached through an imported helper is not "
+            "resolved yet and is reported as unconnected, never as protected.",
+            "Recognized for known provider patterns (e.g. Stripe constructEvent); "
+            "custom verification schemes are not detected.",
+            "Static evidence does not establish that verification runs before the "
+            "handler's side effects.",
+            "Coverage follows scanner language support; see LIMITATIONS.md.",
+        ]
+        return VerificationResult(
+            claim_slug=definition.slug,
+            claim_name=definition.name,
+            statement=definition.statement,
+            status=status,
+            why=why,
+            supporting=supporting,
+            contradictions=contradictions,
+            missing=missing,
+            limitations=limitations,
+            scan_id=scan_id,
+            verified_at=_now(),
+            engine_version=__version__,
+        )
 
     if stub_webhooks and not verifications:
         for stub in stub_webhooks:
@@ -561,13 +697,21 @@ def _route_tokens(route_path: str) -> list[str]:
 def _verify_route_test_coverage(
     definition: ClaimDefinition, rows: list[sqlite3.Row], scan_id: str
 ) -> VerificationResult:
-    """Verify that HTTP routes are exercised by tests.
+    """Verify that HTTP routes have tests importing their implementation.
 
-    Matching is deliberately conservative and explainable. A route counts as
-    covered when a test file either imports the route's implementation module,
-    or names a distinctive segment of the route path. Test files are aggregated
-    first so the comparison stays linear in test FILES, not test cases (large
-    repos have thousands of test cases across a few dozen files).
+    v0.5.1 correction: static association is not execution coverage, and a test
+    that merely shares a word with a route path proves nothing. Two evidence
+    levels are now distinguished:
+
+      import association - a test file imports the route's implementation
+                           module (exact module-stem match, so `users` does not
+                           match `superusers`). This is the only level that can
+                           support the claim.
+      name similarity    - a test name mentions a route segment. Reported as an
+                           unverified suggestion; it can never raise the status.
+
+    Route identity keeps the HTTP method, so a test touching GET does not
+    establish anything about POST on the same path.
 
     Absence of tests is missing evidence, never a contradiction.
     """
@@ -591,97 +735,132 @@ def _verify_route_test_coverage(
             imports.add(str(imp).lower())
         test_blobs.setdefault(path, []).append(str(row["name"] or "").lower())
 
-    # One joined blob per test file keeps matching linear in test FILES and turns
-    # each check into a single substring scan.
+    # One joined blob per test file keeps name matching linear in test FILES.
     test_name_blob = {p: " ".join(names) for p, names in test_blobs.items()}
-    test_import_blob = {p: " ".join(sorted(i)) for p, i in test_imports.items()}
+    # Imports are reduced to exact module stems, so importing "superusers" is not
+    # treated as importing "users" (v0.5.1: substring matching did exactly that).
+    test_import_stems = {
+        p: {_module_token(imp) for imp in imports} for p, imports in test_imports.items()
+    }
 
-    # Deduplicate routes: several methods on one path are one surface to cover.
-    routes: dict[tuple[str, str], sqlite3.Row] = {}
+    # Route identity keeps the HTTP method: a test touching GET establishes
+    # nothing about POST on the same path.
+    routes: dict[tuple[str, str, str], sqlite3.Row] = {}
+    excluded_non_app = 0
     for row in rows:
         if row["kind"] != "route":
             continue
-        try:
-            meta = json.loads(row["metadata_json"] or "{}")
-        except json.JSONDecodeError:
-            meta = {}
+        # Routes defined inside tests, examples, or fixtures are not the
+        # application's HTTP surface and must not be counted as untested.
+        if _is_non_app_path(row["path"]):
+            excluded_non_app += 1
+            continue
+        meta = _meta(row)
         route_path = str(meta.get("path") or row["name"] or "").strip()
-        routes.setdefault((row["path"], route_path.lower()), row)
+        method = str(meta.get("method") or "ANY").upper()
+        routes.setdefault((row["path"], route_path.lower(), method), row)
 
     if not routes:
+        reason = "No application HTTP routes were found in the scanned files."
+        if excluded_non_app:
+            reason += (
+                f" {excluded_non_app} route(s) were found only in test, example, "
+                "or fixture files, which are not application surface."
+            )
         return _not_applicable(
             definition,
             scan_id,
-            "No HTTP routes were found in the scanned files.",
-            "Any HTTP route (Express, Next.js, or FastAPI style).",
+            reason,
+            "Any HTTP route in application code (Express, Next.js, or FastAPI style).",
         )
 
-    covered: list[tuple[str, str, str]] = []  # (impl path, route path, reason)
-    uncovered: list[tuple[str, str]] = []
-    for (impl_path, route_path), row in sorted(routes.items()):
+    associated: list[tuple[str, str, str]] = []  # (impl path, label, reason)
+    suggested: list[tuple[str, str, str]] = []  # name similarity only
+    unassociated: list[tuple[str, str]] = []
+    for (impl_path, route_path, method), row in sorted(routes.items()):
+        label = f"{method} {route_path}" if route_path else impl_path
         token = _module_token(impl_path)
         reason = ""
-        # 1. A test that imports the implementation module.
+        # Only level that can support the claim: a test importing this module.
         if token and len(token) >= 3:
-            for test_path, blob in test_import_blob.items():
-                if token in blob:
+            for test_path, stems in test_import_stems.items():
+                if token in stems:
                     reason = f"{test_path} imports {token}"
                     break
-        # 2. A test whose names mention a distinctive segment of the route path.
-        if not reason:
-            segments = _route_tokens(route_path)
-            for test_path, blob in test_name_blob.items():
-                if segments and any(seg in blob for seg in segments):
-                    reason = f"{test_path} names {segments[0]}"
-                    break
         if reason:
-            covered.append((impl_path, route_path, reason))
-        else:
-            uncovered.append((impl_path, route_path))
+            associated.append((impl_path, label, reason))
+            continue
+        # Name similarity is a suggestion, never support.
+        hint = ""
+        segments = _route_tokens(route_path)
+        for test_path, blob in test_name_blob.items():
+            if segments and any(seg in blob for seg in segments):
+                hint = f"{test_path} mentions '{segments[0]}'"
+                break
+        if hint:
+            suggested.append((impl_path, label, hint))
+        unassociated.append((impl_path, label))
 
     total = len(routes)
-    n_covered = len(covered)
-    # Evidence is bounded (responses and stored fingerprints must stay bounded),
-    # and truncation is disclosed below rather than hidden.
+    n_assoc = len(associated)
+    # Evidence shown to the user is bounded; the dependency set used for
+    # invalidation is tracked separately and is not capped.
     _EVIDENCE_CAP = 25
     sha_by_path = {row["path"]: row["sha256"] for row in rows}
     supporting = [
         EvidenceRef(
             path=impl,
-            observation=f"Route {route or impl} is referenced by a test ({reason}).",
+            observation=f"Route {label} has a test importing its implementation "
+            f"({reason}).",
             kind="route",
             strength="moderate",
             sha256=sha_by_path.get(impl),
         )
-        for impl, route, reason in covered[:_EVIDENCE_CAP]
+        for impl, label, reason in associated[:_EVIDENCE_CAP]
     ]
 
-    why = [f"{n_covered} of {total} routes have a referencing test."]
+    why = [
+        f"{n_assoc} of {total} routes have a test importing their implementation."
+    ]
     missing: list[str] = []
-    if n_covered == total:
+    if n_assoc == total:
         status = SUPPORTED
-        why.append("Every detected route has at least one test referencing it.")
+        why.append(
+            "Every detected route has a test that imports its implementation. "
+            "This is a static association, not proof the route was executed."
+        )
     else:
         status = WEAK
         why.append(
-            "Routes without a referencing test are not proven to be exercised."
+            "Routes without an importing test have no established association."
         )
-        shown = [r or p for p, r in uncovered[:8]]
+        shown = [label for _, label in unassociated[:8]]
         missing.append(
-            f"Tests referencing {total - n_covered} route(s): " + ", ".join(shown)
-            + (" ..." if len(uncovered) > 8 else "")
+            f"Tests importing {total - n_assoc} route(s): " + ", ".join(shown)
+            + (" ..." if len(unassociated) > 8 else "")
+        )
+    if suggested:
+        why.append(
+            f"{len(suggested)} route(s) share vocabulary with a test name but no "
+            "import was found. Name similarity is a suggestion, not evidence: "
+            + suggested[0][2]
         )
 
-    limitations = _LIMITATIONS + [
-        "Coverage is attributed by test imports and route names, not by executing "
-        "tests; a route exercised only indirectly may be reported as uncovered.",
-        "End-to-end specs are excluded from attribution because they match by "
-        "accident.",
+    limitations = [
+        "Association is established from test imports only. A test that exercises "
+        "a route indirectly, through a running server, or through a helper that "
+        "DevTime cannot resolve is reported as unassociated.",
+        "A static import association is not execution coverage. It does not "
+        "establish that the route ran, that assertions covered its behavior, or "
+        "that the test passes.",
+        "End-to-end specs are excluded from attribution because their names match "
+        "by accident; a direct request made by an e2e test is not yet resolved.",
+        "Coverage follows scanner language support; see LIMITATIONS.md.",
     ]
-    if len(covered) > _EVIDENCE_CAP:
+    if len(associated) > _EVIDENCE_CAP:
         limitations.append(
-            f"Evidence is capped at {_EVIDENCE_CAP} routes; freshness tracks only "
-            f"those recorded files, not all {len(covered)} covered routes."
+            f"Displayed evidence is capped at {_EVIDENCE_CAP} of {len(associated)} "
+            "associated routes."
         )
     return VerificationResult(
         claim_slug=definition.slug,
@@ -704,12 +883,32 @@ def _verify_route_test_coverage(
 # --------------------------------------------------------------------------- #
 
 _ADMIN_TOKENS = ("admin", "superuser", "staff", "backoffice", "back-office")
+
+# Authorization: establishes a role or permission decision.
 _AUTHZ_TOKENS = (
     "requireadmin", "require_admin", "isadmin", "is_admin", "adminonly",
-    "admin_only", "hasrole", "has_role", "authorize", "authorization",
-    "permission", "rbac", "requireauth", "require_auth", "isauthenticated",
-    "current_user", "get_current_user", "authmiddleware", "auth_middleware",
+    "admin_only", "hasrole", "has_role", "requirerole", "require_role",
+    "authorize", "requirepermission", "require_permission", "checkpermission",
+    "check_permission", "haspermission", "has_permission", "rbac", "withadmin",
+    "with_admin", "adminguard", "admin_guard", "ensureadmin", "ensure_admin",
 )
+
+# Authentication: establishes identity only. Knowing WHO the caller is does not
+# establish that they are ALLOWED to use an administrative endpoint, so these
+# never satisfy the authorization claim on their own.
+_AUTHN_ONLY_TOKENS = (
+    "requireauth", "require_auth", "isauthenticated", "is_authenticated",
+    "ensureauth", "ensure_auth", "authmiddleware", "auth_middleware",
+    "current_user", "currentuser", "get_current_user", "getcurrentuser",
+    "requirelogin", "require_login", "withauth", "with_auth",
+)
+
+_COMMENT_RE = re.compile(r"/\*.*?\*/|//[^\n]*", re.S)
+
+
+def _executable_text(fragment: str) -> str:
+    """Strip comments so commented-out guards cannot become evidence."""
+    return _COMMENT_RE.sub(" ", fragment or "").lower()
 
 
 def _verify_admin_authorization(
@@ -722,22 +921,17 @@ def _verify_admin_authorization(
     wrapper the scanner cannot see. Telling someone their admin endpoint is
     unprotected when it is not would destroy the trust this tool is built on.
     """
+    # Surface detection uses the ROUTE PATH only. A file named permissions.ts is
+    # not evidence about behavior (v0.5.1: it previously was, and produced
+    # SUPPORTED on routes with no guard at all).
     admin_routes: list[sqlite3.Row] = []
-    authz_files: set[str] = set()
-    authz_rows: list[sqlite3.Row] = []
-
     for row in rows:
-        hay = _hay(row)
-        kind = row["kind"]
-        if kind == "route" and any(t in hay for t in _ADMIN_TOKENS):
+        if row["kind"] != "route":
+            continue
+        meta = _meta(row)
+        route_path = str(meta.get("path") or row["name"] or "").lower()
+        if any(t in route_path for t in _ADMIN_TOKENS):
             admin_routes.append(row)
-        if kind in ("middleware", "auth_dependency") or any(
-            t in hay for t in _AUTHZ_TOKENS
-        ):
-            if kind in ("middleware", "auth_dependency", "route", "test"):
-                authz_files.add(row["path"])
-                if kind in ("middleware", "auth_dependency"):
-                    authz_rows.append(row)
 
     if not admin_routes:
         return _not_applicable(
@@ -747,48 +941,84 @@ def _verify_admin_authorization(
             "An admin, staff, or back-office route.",
         )
 
-    protected: list[sqlite3.Row] = []
-    unprotected: list[sqlite3.Row] = []
+    guarded: list[sqlite3.Row] = []
+    identity_only: list[sqlite3.Row] = []
+    unresolved: list[sqlite3.Row] = []  # no call-site evidence available
+    no_guard: list[sqlite3.Row] = []
+
     for row in admin_routes:
-        hay = _hay(row)
-        # Authorization evidence in the route's own file, or in the route itself.
-        if row["path"] in authz_files or any(t in hay for t in _AUTHZ_TOKENS):
-            protected.append(row)
+        meta = _meta(row)
+        if "handlers" not in meta:
+            # Next.js and other file-based routes have no argument list to read.
+            unresolved.append(row)
+            continue
+        call_site = _executable_text(str(meta.get("handlers") or ""))
+        if any(t in call_site for t in _AUTHZ_TOKENS):
+            guarded.append(row)
+        elif any(t in call_site for t in _AUTHN_ONLY_TOKENS):
+            identity_only.append(row)
         else:
-            unprotected.append(row)
+            no_guard.append(row)
 
     supporting = [
-        _ref(r, "Admin route shows an authorization check in its file.", "moderate")
-        for r in protected[:5]
-    ] + [
-        _ref(r, "Authorization middleware or dependency.", "moderate")
-        for r in authz_rows[:2]
+        _ref(
+            r,
+            f"Authorization guard is applied at this route's own call site "
+            f"({str(_meta(r).get('handlers') or '')[:80]}).",
+            "strong",
+        )
+        for r in guarded[:5]
     ]
 
     total = len(admin_routes)
-    why = [f"{len(protected)} of {total} administrative route(s) show an "
-           "authorization check."]
+    why = [
+        f"{len(guarded)} of {total} administrative route(s) have an authorization "
+        "guard at their own call site."
+    ]
     missing: list[str] = []
 
-    if not unprotected:
+    if len(guarded) == total:
         status = SUPPORTED
-        why.append("Every detected admin route has authorization evidence.")
+        why.append("Every detected admin route applies an authorization guard directly.")
     else:
         status = WEAK
-        why.append(
-            "No authorization evidence was found for the remaining admin route(s). "
-            "This is missing evidence, not proof that they are unprotected."
-        )
-        missing.append(
-            "Authorization evidence for: "
-            + ", ".join(sorted({r["path"] for r in unprotected})[:6])
-        )
+        if identity_only:
+            why.append(
+                f"{len(identity_only)} route(s) apply an authentication check but no "
+                "role or permission check. Knowing who the caller is does not "
+                "establish that they may use an administrative endpoint."
+            )
+            missing.append(
+                "A role or permission check for: "
+                + ", ".join(sorted({_route_label(r) for r in identity_only})[:6])
+            )
+        if no_guard:
+            why.append(
+                f"{len(no_guard)} route(s) have no guard at their call site. This is "
+                "missing evidence, not proof that they are unprotected."
+            )
+            missing.append(
+                "Authorization evidence for: "
+                + ", ".join(sorted({_route_label(r) for r in no_guard})[:6])
+            )
+        if unresolved:
+            why.append(
+                f"{len(unresolved)} route(s) use a routing style whose guard "
+                "association DevTime cannot resolve yet."
+            )
+            missing.append(
+                "A resolvable guard association for: "
+                + ", ".join(sorted({_route_label(r) for r in unresolved})[:6])
+            )
 
-    limitations = _LIMITATIONS + [
-        "Authorization applied globally (a server-wide middleware, a router "
-        "mount, or a framework decorator the scanner does not parse) is not "
-        "detected. A WEAK result means DevTime found no evidence, never that a "
-        "route is confirmed unprotected.",
+    limitations = [
+        "Authorization is established only from a guard applied at the route's own "
+        "call site. Guards applied by a router mount, a server-wide middleware, or "
+        "a framework decorator are not resolved yet and are reported as unresolved, "
+        "never as protected.",
+        "A WEAK result means DevTime found no connected authorization evidence. It "
+        "is never proof that a route is unprotected.",
+        "Coverage follows scanner language support; see LIMITATIONS.md.",
     ]
     return VerificationResult(
         claim_slug=definition.slug,

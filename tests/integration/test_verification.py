@@ -477,7 +477,11 @@ def test_admin_authorization_missing_authz_is_weak_never_contradicted(
     assert result.status == ver.WEAK
     assert result.contradictions == []
     assert any("not proof" in w.lower() for w in result.why)
-    assert any("globally" in lim for lim in result.limitations)
+    # The safety-critical disclosures: guards DevTime cannot resolve are named,
+    # and WEAK is never presented as proof that a route is unprotected.
+    blob = " ".join(result.limitations).lower()
+    assert "server-wide" in blob or "router mount" in blob
+    assert "never proof" in blob or "not proof" in blob
 
 
 def test_admin_authorization_not_applicable_without_admin_routes(tmp_path, monkeypatch):
@@ -570,3 +574,258 @@ def test_single_claim_that_does_not_apply_still_explains_itself(tmp_path, monkey
     assert result.exit_code == 0
     assert "NOT_APPLICABLE" in result.stdout
     assert "does not apply" in result.stdout
+
+
+# --- v0.5.1: false-SUPPORTED regressions -----------------------------------------
+#
+# Each of these produced SUPPORTED in v0.5.0 with no justifying evidence. They
+# are the reason this release exists; none of them may ever pass again.
+
+ADMIN_NO_GUARD = """
+import express from "express";
+const router = express.Router();
+router.get("/admin/permissions", listPermissions);
+export default router;
+"""
+
+ADMIN_AUTHN_ONLY = """
+import express from "express";
+import { requireAuth } from "./auth";
+const router = express.Router();
+router.get("/admin/settings", requireAuth, editSettings);
+"""
+
+ADMIN_FAKE_GUARDS = """
+import express from "express";
+import { requireAdmin } from "./auth";
+const router = express.Router();
+// TODO: add requireAdmin here
+const note = "requireAdmin hasRole";
+router.get("/admin/a", handler);
+"""
+
+ADMIN_GUARDED = """
+import express from "express";
+import { requireAdmin } from "./auth";
+const router = express.Router();
+router.get("/admin/a", requireAdmin, handler);
+"""
+
+ADMIN_MIXED = """
+import express from "express";
+import { requireAdmin } from "./auth";
+const router = express.Router();
+router.get("/admin/users", requireAdmin, listUsers);
+router.get("/admin/logs", readLogs);
+"""
+
+
+def test_admin_filename_is_not_authorization_evidence(tmp_path, monkeypatch):
+    # v0.5.0 bug: the evaluator matched combined text that included the FILE
+    # PATH, so src/admin/permissions.ts satisfied the "permission" token and
+    # reported "1 of 1 administrative route(s) show an authorization check"
+    # on a repository containing no guard at all.
+    _repo(tmp_path, {"src/admin/permissions.ts": ADMIN_NO_GUARD})
+    _init_scan(tmp_path, monkeypatch)
+    result = _verify("admin-authorization")
+    assert result.status == ver.WEAK
+    assert "0 of 1" in " ".join(result.why)
+
+
+def test_admin_authentication_alone_is_not_authorization(tmp_path, monkeypatch):
+    _repo(tmp_path, {"src/admin/settings.ts": ADMIN_AUTHN_ONLY})
+    _init_scan(tmp_path, monkeypatch)
+    result = _verify("admin-authorization")
+    assert result.status == ver.WEAK
+    assert any("role or permission" in w.lower() for w in result.why)
+
+
+def test_admin_commented_and_unused_guards_are_not_evidence(tmp_path, monkeypatch):
+    _repo(tmp_path, {"src/admin/a.ts": ADMIN_FAKE_GUARDS})
+    _init_scan(tmp_path, monkeypatch)
+    assert _verify("admin-authorization").status == ver.WEAK
+
+
+def test_admin_guard_at_call_site_is_supported(tmp_path, monkeypatch):
+    # The legitimate pattern must keep working, or the fix is useless.
+    _repo(tmp_path, {"src/admin/a.ts": ADMIN_GUARDED})
+    _init_scan(tmp_path, monkeypatch)
+    assert _verify("admin-authorization").status == ver.SUPPORTED
+
+
+def test_admin_two_routes_one_guarded_is_not_supported(tmp_path, monkeypatch):
+    # A guard on one route does not protect its neighbour in the same file.
+    _repo(tmp_path, {"src/admin/a.ts": ADMIN_MIXED})
+    _init_scan(tmp_path, monkeypatch)
+    result = _verify("admin-authorization")
+    assert result.status == ver.WEAK
+    assert "1 of 2" in " ".join(result.why)
+    assert any("/admin/logs" in m for m in result.missing)
+
+
+ROUTE_USERS = """
+import express from "express";
+const router = express.Router();
+router.get("/users", listUsers);
+"""
+
+UNRELATED_USERS_TEST = """
+import { describe, it } from "vitest";
+describe("display", () => { it("formats users display names", () => {}); });
+"""
+
+SUPERUSERS_TEST = """
+import { listSuperusers } from "../src/routes/superusers";
+import { describe, it } from "vitest";
+describe("superusers", () => { it("lists", () => {}); });
+"""
+
+IMPORTING_USERS_TEST = """
+import router from "../src/routes/users";
+import { describe, it } from "vitest";
+describe("users", () => { it("lists", () => {}); });
+"""
+
+
+def test_name_similarity_alone_does_not_associate_a_test(tmp_path, monkeypatch):
+    # v0.5.0 bug: a test merely sharing the word "users" produced SUPPORTED.
+    _repo(tmp_path, {
+        "src/routes/users.ts": ROUTE_USERS,
+        "tests/display.test.ts": UNRELATED_USERS_TEST,
+    })
+    _init_scan(tmp_path, monkeypatch)
+    result = _verify("route-test-coverage")
+    assert result.status == ver.WEAK
+    assert "0 of 1" in " ".join(result.why)
+    # The similarity may be offered as a suggestion, but never as support.
+    assert any("suggestion" in w.lower() for w in result.why)
+
+
+def test_import_stem_collision_does_not_associate(tmp_path, monkeypatch):
+    # Importing "superusers" is not importing "users".
+    _repo(tmp_path, {
+        "src/routes/users.ts": ROUTE_USERS,
+        "tests/superusers.test.ts": SUPERUSERS_TEST,
+    })
+    _init_scan(tmp_path, monkeypatch)
+    assert _verify("route-test-coverage").status == ver.WEAK
+
+
+def test_importing_test_associates_and_never_claims_execution(tmp_path, monkeypatch):
+    _repo(tmp_path, {
+        "src/routes/users.ts": ROUTE_USERS,
+        "tests/users.test.ts": IMPORTING_USERS_TEST,
+    })
+    _init_scan(tmp_path, monkeypatch)
+    result = _verify("route-test-coverage")
+    assert result.status == ver.SUPPORTED
+    blob = (" ".join(result.why) + " " + " ".join(result.limitations)).lower()
+    assert "not execution coverage" in blob or "not proof the route was executed" in blob
+    assert "exercised by tests" not in result.statement.lower()
+
+
+WEBHOOK_ROUTE_BARE = """
+import express from "express";
+const router = express.Router();
+router.post("/api/stripe/webhook", (req, res) => { res.json({ ok: true }); });
+"""
+
+UNUSED_SIG_HELPER = """
+import Stripe from "stripe";
+const stripe = new Stripe(process.env.KEY);
+export function verifyIt(body, sig, secret) {
+  return stripe.webhooks.constructEvent(body, sig, secret);
+}
+"""
+
+WEBHOOK_ROUTE_VERIFIED = """
+import express from "express";
+import Stripe from "stripe";
+const stripe = new Stripe(process.env.KEY);
+const router = express.Router();
+router.post("/api/stripe/webhook", (req, res) => {
+  const event = stripe.webhooks.constructEvent(req.body, sig, secret);
+  res.json({ received: true });
+});
+"""
+
+WEBHOOK_ROUTE_PAYPAL_BARE = """
+import express from "express";
+const router = express.Router();
+router.post("/api/paypal/webhook", (req, res) => { res.json({ ok: true }); });
+"""
+
+
+def test_unconnected_signature_helper_does_not_support_handler(tmp_path, monkeypatch):
+    # v0.5.0 bug: a verification helper anywhere in the repo - even one nothing
+    # calls - reported SUPPORTED for every billing webhook endpoint.
+    _repo(tmp_path, {
+        "src/billing/webhook-route.ts": WEBHOOK_ROUTE_BARE,
+        "src/util/sig-helper.ts": UNUSED_SIG_HELPER,
+    })
+    _init_scan(tmp_path, monkeypatch)
+    result = _verify("billing-webhook-signature")
+    assert result.status == ver.WEAK
+    assert "0 of 1" in " ".join(result.why)
+
+
+def test_handler_local_verification_is_supported(tmp_path, monkeypatch):
+    _repo(tmp_path, {"src/billing/stripe-webhook.ts": WEBHOOK_ROUTE_VERIFIED})
+    _init_scan(tmp_path, monkeypatch)
+    assert _verify("billing-webhook-signature").status == ver.SUPPORTED
+
+
+def test_partial_webhook_coverage_is_reported_per_handler(tmp_path, monkeypatch):
+    _repo(tmp_path, {
+        "src/billing/stripe-webhook.ts": WEBHOOK_ROUTE_VERIFIED,
+        "src/billing/paypal-webhook.ts": WEBHOOK_ROUTE_PAYPAL_BARE,
+    })
+    _init_scan(tmp_path, monkeypatch)
+    result = _verify("billing-webhook-signature")
+    assert result.status == ver.WEAK
+    assert "1 of 2" in " ".join(result.why)
+    assert any("paypal" in m.lower() for m in result.missing)
+
+
+def test_signature_call_in_test_file_does_not_protect_production(tmp_path, monkeypatch):
+    # A verification call inside a test fixture is not handler protection.
+    _repo(tmp_path, {
+        "src/billing/webhook-route.ts": WEBHOOK_ROUTE_BARE,
+        "tests/webhook.test.ts": UNUSED_SIG_HELPER,
+    })
+    _init_scan(tmp_path, monkeypatch)
+    assert _verify("billing-webhook-signature").status == ver.WEAK
+
+
+def test_routes_in_tests_and_examples_are_not_application_surface(tmp_path, monkeypatch):
+    # v0.5.1: express reported "142 routes", nearly all of them defined inside
+    # its own test/ and examples/ directories. Those are fixtures, not the
+    # application's HTTP surface, and counting them as untested is noise.
+    _repo(tmp_path, {
+        "test/acceptance/auth.js":
+            'const express = require("express");\n'
+            "const app = express();\n"
+            'app.get("/fixture-route", handler);\n',
+        "examples/hello/index.js":
+            'const express = require("express");\n'
+            "const app = express();\n"
+            'app.get("/example-route", handler);\n',
+    })
+    _init_scan(tmp_path, monkeypatch)
+    result = _verify("route-test-coverage")
+    assert result.status == ver.NOT_APPLICABLE
+    assert any("test, example" in w for w in result.why)
+
+
+def test_application_routes_are_still_counted_alongside_fixtures(tmp_path, monkeypatch):
+    _repo(tmp_path, {
+        "src/routes/users.ts": ROUTE_USERS,
+        "test/acceptance/auth.js":
+            'const express = require("express");\n'
+            "const app = express();\n"
+            'app.get("/fixture-route", handler);\n',
+    })
+    _init_scan(tmp_path, monkeypatch)
+    result = _verify("route-test-coverage")
+    # Only the application route is in the inventory.
+    assert "of 1 routes" in " ".join(result.why)

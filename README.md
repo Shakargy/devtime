@@ -29,9 +29,10 @@ dtc scan
 dtc verify
 ```
 
-On the demo repo that ends with signature verification SUPPORTED, JWT
-authentication SUPPORTED, and `2 of 3 routes have a referencing test`. Point it at
-your own repository and the answers change:
+On the demo repo that ends with billing webhook signature verification
+SUPPORTED, JWT authentication SUPPORTED, and route test association WEAK, naming
+the routes with no test importing them. Point it at your own repository and the
+answers change:
 
 ```bash
 cd your-repo
@@ -106,7 +107,7 @@ Contradictions:
 - **UNKNOWN** - the surface exists but coverage cannot responsibly decide
 - **NOT_APPLICABLE** - the repository has no surface this claim is about
 
-Four built-in claims ship: route test coverage, admin authorization, billing
+Four built-in claims ship: route test association, admin authorization, billing
 webhook signatures, and JWT authentication. `dtc verify` leads with what it can
 actually verify in your repository, and when nothing applies it says what would
 make a claim verifiable instead of dead-ending.
