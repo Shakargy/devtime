@@ -15,12 +15,33 @@ from devtime.scanner.file_walker import WalkedFile
 _IMPORT_RE = re.compile(r"""import\s+.*?from\s+['"]([^'"]+)['"]""")
 # Match app/router as well as named routers (authRouter, exportRouter, etc).
 _ROUTE_RE = re.compile(
-    r"""\b(?:app|\w*[Rr]outer)\.(get|post|put|patch|delete)\(\s*['"]([^'"]+)['"]""",
+    r"""\b(?:app|\w*[Rr]outer)\.(get|post|put|patch|delete)(\()\s*['"]([^'"]+)['"]""",
     re.I,
 )
 _MIDDLEWARE_RE = re.compile(
     r"""\b(requireAuth|authMiddleware|isAuthenticated|ensureAuth|requireAdmin)\b"""
 )
+
+
+def _call_arguments(text: str, open_paren: int, limit: int = 600) -> str:
+    """Return the argument text of a call whose '(' is at ``open_paren``.
+
+    v0.5.1: evidence about a route must come from that route's own call site,
+    not from anywhere in the file. Walking the balanced parentheses is enough
+    to capture `router.get("/admin", requireAdmin, handler)` without pulling in
+    unrelated code, comments, or other routes further down the file.
+    """
+    depth = 0
+    end = min(len(text), open_paren + limit)
+    for i in range(open_paren, end):
+        ch = text[i]
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                return text[open_paren + 1 : i]
+    return text[open_paren + 1 : end]
 _BULLMQ_WORKER_RE = re.compile(r"""new\s+Worker\(\s*['"]([^'"]+)['"]""")
 _BULLMQ_QUEUE_RE = re.compile(r"""new\s+Queue\(\s*['"]([^'"]+)['"]""")
 # Custom task-runner infrastructure (v0.1.3, Cal.com proof run): Cal.com's Tasker
@@ -48,14 +69,23 @@ def extract_typescript_signals(file: WalkedFile) -> list[Signal]:
 
     for match in _ROUTE_RE.finditer(text):
         method = match.group(1).upper()
-        path = match.group(2)
+        path = match.group(3)
+        # v0.5.1: the route's own arguments are what can protect it. Everything
+        # else in the file is a different route's business.
+        handlers = _call_arguments(text, match.start(2))
         signals.append(
             signal(
                 "route",
                 name=f"{method} {path}",
                 file=file,
+                start_line=text.count("\n", 0, match.start()) + 1,
                 confidence=0.8,
-                metadata={"method": method, "path": path, "framework": "express"},
+                metadata={
+                    "method": method,
+                    "path": path,
+                    "framework": "express",
+                    "handlers": handlers.strip(),
+                },
             )
         )
 

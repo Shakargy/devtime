@@ -75,12 +75,17 @@ do. Read this before trusting any single output.
 - Four built-in claims (route-test-coverage, admin-authorization,
   billing-webhook-signature, jwt-authentication). User-defined claims are not
   supported yet, deliberately.
-- Route test coverage is attributed statically (test imports and route names),
-  not by executing tests. A route exercised only indirectly can be reported as
-  uncovered.
-- Admin authorization reports WEAK when it finds no authorization evidence.
-  That means DevTime found nothing, never that a route is confirmed
-  unprotected: global middleware and framework decorators are not detected.
+- Route test association is established from test imports only, and a static
+  import association is not execution coverage. Tests that exercise a route
+  through a running server (supertest, TestClient) or through an unresolved
+  helper are reported as unassociated, so this claim currently abstains on many
+  real repositories.
+- Admin authorization is established only from a guard at the route's own call
+  site. Guards applied by a router mount, a server-wide middleware, or a
+  framework decorator are reported as unresolved. WEAK means DevTime found no
+  connected evidence, never that a route is confirmed unprotected.
+- Billing webhook signature verification is connected per handler by file.
+  Verification reached through an imported helper is not resolved yet.
 - Verification is rule-driven over scanner signals; it inherits every scanner
   coverage limitation listed here.
 - Statuses mean "per DevTime's evidence rules", not formal proof or a security

@@ -62,18 +62,28 @@ so plainly is more useful than an ominous UNKNOWN.
 
 ## Built-in claims
 
-- **route-test-coverage** (v0.5) - "HTTP routes are exercised by tests." Reports
-  how many routes have a referencing test and names the ones that do not.
-  Attribution is by test imports and route names; end-to-end specs are excluded
-  because they match by accident. Absence of tests is missing evidence, never a
-  contradiction.
+- **route-test-coverage** (id kept for compatibility; now presented as *Route
+  Test Association*) - "HTTP routes have tests that import their
+  implementation." Association is established from test imports only, matched on
+  exact module stems so `users` does not match `superusers`. Route identity keeps
+  the HTTP method. A test that merely shares a word with a route path is reported
+  as an unverified suggestion and can never raise the status. Routes defined in
+  test, example, or fixture files are not application surface and are excluded
+  from the inventory. A static association is not execution coverage.
 - **admin-authorization** (v0.5) - "Administrative routes require an
-  authorization check." A missing authorization signal is WEAK, never
-  CONTRADICTED: authorization can be applied globally or by a wrapper the
-  scanner cannot see, and reporting an endpoint as unprotected when it is not
-  would destroy the trust this tool is built on.
+  authorization check." Authorization is established only from a guard applied at
+  the route's own call site. Authentication is not authorization: `requireAuth`
+  establishes identity, not permission. Guards that are imported but unused,
+  named in a comment, named in a string, or applied to a different route in the
+  same file are not evidence. Guards applied by a router mount or a server-wide
+  middleware are reported as unresolved, never as protected. A missing signal is
+  WEAK, never CONTRADICTED.
 - **billing-webhook-signature** - "Incoming billing webhooks verify the payment
-  provider's signature."
+  provider's signature." Verification is connected per handler: a signature call
+  must appear in the handler's own file. A helper elsewhere in the repository -
+  even one nothing calls - does not protect a handler, and a call inside a test
+  file does not protect production code. Mixed repositories report per-handler
+  counts.
 - **jwt-authentication** (v0.3) - "Authentication uses JWT access tokens."
   Includes the documentation-vs-implementation detector: documentation claiming
   JWT while the only JWT usage found is invitation/verification tokens is a
