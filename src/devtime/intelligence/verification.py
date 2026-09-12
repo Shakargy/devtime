@@ -31,6 +31,7 @@ Freshness is separate from truth:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sqlite3
@@ -123,6 +124,17 @@ class VerificationResult:
     scan_id: str | None
     verified_at: str
     engine_version: str
+    # v0.6.0: the complete set of files whose content justified this conclusion.
+    # This is NOT the same as `supporting`, which is a bounded selection shown to
+    # a human. Displayed evidence may be capped; the dependency set never is,
+    # because it is what invalidation is computed from. A WEAK result has
+    # dependencies too: the files it examined are exactly what would change the
+    # answer.
+    dependencies: list[str] = field(default_factory=list)
+    # Fingerprint of the surface the claim reasoned about (e.g. the set of
+    # application routes). A claim about "all routes" depends on the inventory,
+    # so adding a new route must invalidate it even if no existing file changed.
+    inventory: str | None = None
 
     def to_dict(self) -> dict:
         # schema_version 2 (v0.5.0): adds the NOT_APPLICABLE status value. All
@@ -142,6 +154,9 @@ class VerificationResult:
             "scan_id": self.scan_id,
             "verified_at": self.verified_at,
             "engine_version": self.engine_version,
+            # Bounded on purpose: the full dependency list is stored locally and
+            # drives invalidation, but responses stay small.
+            "dependency_count": len(self.dependencies),
         }
 
 
@@ -171,7 +186,7 @@ BUILTIN_CLAIMS: dict[str, ClaimDefinition] = {
     "route-test-coverage": ClaimDefinition(
         slug="route-test-coverage",
         name="Route Test Association",
-        statement="HTTP routes have tests that import their implementation.",
+        statement="HTTP routes are referenced by tests that request or import them.",
         category="testing",
     ),
     "admin-authorization": ClaimDefinition(
@@ -217,6 +232,16 @@ def _load_signals(conn: sqlite3.Connection, scan_id: str) -> list[sqlite3.Row]:
         "WHERE s.scan_id = ?",
         (scan_id,),
     ).fetchall()
+
+
+def _inventory_fingerprint(items: list[str]) -> str:
+    """Stable fingerprint of a surface set (routes, handlers).
+
+    Deterministic and order-independent, so an unchanged repository always
+    produces the same value while an added or removed member changes it.
+    """
+    joined = "\n".join(sorted(items))
+    return hashlib.sha256(joined.encode("utf-8")).hexdigest()[:16]
 
 
 def _meta(row: sqlite3.Row) -> dict:
@@ -439,6 +464,14 @@ def _verify_billing_webhook_signature(
         status = SUPPORTED if n_connected == n_total else WEAK
         if not signature_tests:
             missing.append("A test that exercises webhook signature verification.")
+        dependencies = sorted(
+            {r["path"] for r in webhook_route_rows}
+            | verify_files
+            | {r["path"] for r in verification_rows}
+        )
+        inventory = _inventory_fingerprint(
+            [_route_label(r) for r in webhook_route_rows]
+        )
         limitations = [
             "Signature verification is connected to a handler when both appear in "
             "the same file. Verification reached through an imported helper is not "
@@ -462,6 +495,8 @@ def _verify_billing_webhook_signature(
             scan_id=scan_id,
             verified_at=_now(),
             engine_version=__version__,
+            dependencies=dependencies,
+            inventory=inventory,
         )
 
     if stub_webhooks and not verifications:
@@ -537,6 +572,9 @@ def _verify_billing_webhook_signature(
         scan_id=scan_id,
         verified_at=_now(),
         engine_version=__version__,
+        dependencies=sorted(
+            {e.path for e in (supporting + verifications + stub_webhooks)}
+        ),
     )
 
 
@@ -660,6 +698,14 @@ def _verify_jwt_authentication(
         scan_id=scan_id,
         verified_at=_now(),
         engine_version=__version__,
+        dependencies=sorted(
+            {
+                e.path
+                for e in (
+                    access_usage + invitation_usage + unclear_usage + jwt_docs + jwt_deps
+                )
+            }
+        ),
     )
 
 
@@ -679,6 +725,17 @@ def _module_token(path: str) -> str:
             stem = stem[: -len(suffix)]
             break
     return stem.lower()
+
+
+def _is_prefix_relative(route_path: str) -> bool:
+    """True when a route path cannot identify a full URL on its own.
+
+    FastAPI and Express routers are commonly declared relative to a mount
+    prefix (`APIRouter()` + `include_router(..., prefix="/api/v1/items")`), so a
+    declared path of "/" or "/{id}" says nothing about the served URL.
+    """
+    p = (route_path or "").strip()
+    return p in ("", "/") or p.startswith("/{") or p.startswith("/:")
 
 
 def _route_tokens(route_path: str) -> list[str]:
@@ -717,6 +774,7 @@ def _verify_route_test_coverage(
     """
     # Aggregate tests per file: imports + a single blob of test names.
     test_imports: dict[str, set[str]] = {}
+    test_requests: dict[str, set[tuple[str, str]]] = {}
     test_blobs: dict[str, list[str]] = {}
     for row in rows:
         if row["kind"] != "test":
@@ -733,6 +791,14 @@ def _verify_route_test_coverage(
         imports = test_imports.setdefault(path, set())
         for imp in meta.get("imports") or []:
             imports.add(str(imp).lower())
+        reqs = test_requests.setdefault(path, set())
+        for req in meta.get("requests") or []:
+            reqs.add(
+                (
+                    str(req.get("method", "")).upper(),
+                    str(req.get("path", "")).lower().rstrip("/") or "/",
+                )
+            )
         test_blobs.setdefault(path, []).append(str(row["name"] or "").lower())
 
     # One joined blob per test file keeps name matching linear in test FILES.
@@ -777,12 +843,22 @@ def _verify_route_test_coverage(
     associated: list[tuple[str, str, str]] = []  # (impl path, label, reason)
     suggested: list[tuple[str, str, str]] = []  # name similarity only
     unassociated: list[tuple[str, str]] = []
+    unresolved: list[tuple[str, str]] = []  # full URL cannot be determined
     for (impl_path, route_path, method), row in sorted(routes.items()):
         label = f"{method} {route_path}" if route_path else impl_path
         token = _module_token(impl_path)
         reason = ""
-        # Only level that can support the claim: a test importing this module.
-        if token and len(token) >= 3:
+        # Strongest available level: a test that requests this exact endpoint.
+        norm_path = route_path.rstrip("/") or "/"
+        for test_path, reqs in test_requests.items():
+            if (method, norm_path) in reqs or ("ANY", norm_path) in reqs:
+                reason = f"{test_path} requests {method} {route_path}"
+                break
+            if method == "ANY" and any(p == norm_path for _m, p in reqs):
+                reason = f"{test_path} requests {route_path}"
+                break
+        # Next level: a test importing this module.
+        if not reason and token and len(token) >= 3:
             for test_path, stems in test_import_stems.items():
                 if token in stems:
                     reason = f"{test_path} imports {token}"
@@ -799,10 +875,17 @@ def _verify_route_test_coverage(
                 break
         if hint:
             suggested.append((impl_path, label, hint))
-        unassociated.append((impl_path, label))
+        # A prefix-relative path ("/" or "/{id}") does not identify a full URL:
+        # the router's mount prefix was not resolved, so this is a gap in the
+        # analysis, not evidence that the route lacks a test.
+        if _is_prefix_relative(route_path):
+            unresolved.append((impl_path, label))
+        else:
+            unassociated.append((impl_path, label))
 
     total = len(routes)
     n_assoc = len(associated)
+    n_unresolved = len(unresolved)
     # Evidence shown to the user is bounded; the dependency set used for
     # invalidation is tracked separately and is not capped.
     _EVIDENCE_CAP = 25
@@ -820,36 +903,65 @@ def _verify_route_test_coverage(
     ]
 
     why = [
-        f"{n_assoc} of {total} routes have a test importing their implementation."
+        f"{n_assoc} of {total} routes are referenced by a test that requests or "
+        f"imports them."
     ]
     missing: list[str] = []
     if n_assoc == total:
         status = SUPPORTED
         why.append(
-            "Every detected route has a test that imports its implementation. "
-            "This is a static association, not proof the route was executed."
+            "Every detected route is referenced by a test that requests or imports "
+            "it. This is a static association, not proof the route was executed "
+            "or that its assertions cover the behavior."
         )
     else:
         status = WEAK
-        why.append(
-            "Routes without an importing test have no established association."
-        )
-        shown = [label for _, label in unassociated[:8]]
-        missing.append(
-            f"Tests importing {total - n_assoc} route(s): " + ", ".join(shown)
-            + (" ..." if len(unassociated) > 8 else "")
-        )
+        if unassociated:
+            why.append(
+                "Routes with no requesting or importing test have no established "
+                "association."
+            )
+            shown = [label for _, label in unassociated[:8]]
+            missing.append(
+                f"A test requesting or importing {len(unassociated)} route(s): "
+                + ", ".join(shown)
+                + (" ..." if len(unassociated) > 8 else "")
+            )
+        if unresolved:
+            why.append(
+                f"{n_unresolved} route(s) are declared relative to a router mount "
+                "prefix that DevTime did not resolve, so their full URL is unknown. "
+                "That is a gap in this analysis, not evidence that they lack tests."
+            )
+            missing.append(
+                "A resolvable full URL for: "
+                + ", ".join(label for _, label in unresolved[:6])
+            )
     if suggested:
         why.append(
             f"{len(suggested)} route(s) share vocabulary with a test name but no "
-            "import was found. Name similarity is a suggestion, not evidence: "
+            "request or import was found. Name similarity is a suggestion, not "
+            "evidence: "
             + suggested[0][2]
         )
 
+    # Dependencies: every application route file and every test file that was
+    # considered. Editing a test that justified an association must invalidate
+    # the result, which v0.5.x did not do because only route files were stored.
+    dependencies = sorted(
+        {impl for (impl, _p, _m) in routes.keys()}
+        | set(test_name_blob.keys())
+        | set(test_requests.keys())
+    )
+    inventory = _inventory_fingerprint(
+        [f"{m} {p} {impl}" for (impl, p, m) in routes.keys()]
+    )
+
     limitations = [
-        "Association is established from test imports only. A test that exercises "
-        "a route indirectly, through a running server, or through a helper that "
-        "DevTime cannot resolve is reported as unassociated.",
+        "Association is established from a test that requests the exact route "
+        "path, or from a test that imports the route's implementation module. A "
+        "test that reaches a route only through a variable URL, a helper, or a "
+        "mounted prefix DevTime cannot resolve is reported as unassociated.",
         "A static import association is not execution coverage. It does not "
         "establish that the route ran, that assertions covered its behavior, or "
         "that the test passes.",
@@ -875,6 +987,8 @@ def _verify_route_test_coverage(
         scan_id=scan_id,
         verified_at=_now(),
         engine_version=__version__,
+        dependencies=dependencies,
+        inventory=inventory,
     )
 
 
@@ -1011,6 +1125,9 @@ def _verify_admin_authorization(
                 + ", ".join(sorted({_route_label(r) for r in unresolved})[:6])
             )
 
+    dependencies = sorted({r["path"] for r in admin_routes})
+    inventory = _inventory_fingerprint([_route_label(r) for r in admin_routes])
+
     limitations = [
         "Authorization is established only from a guard applied at the route's own "
         "call site. Guards applied by a router mount, a server-wide middleware, or "
@@ -1033,6 +1150,8 @@ def _verify_admin_authorization(
         scan_id=scan_id,
         verified_at=_now(),
         engine_version=__version__,
+        dependencies=dependencies,
+        inventory=inventory,
     )
 
 
@@ -1089,6 +1208,7 @@ CREATE TABLE IF NOT EXISTS verifications (
     scan_id TEXT,
     result_json TEXT NOT NULL,
     evidence_fingerprints_json TEXT NOT NULL DEFAULT '[]',
+    inventory_fingerprint TEXT,
     engine_version TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
@@ -1096,32 +1216,54 @@ CREATE TABLE IF NOT EXISTS verifications (
 
 
 def ensure_verifications_table(conn: sqlite3.Connection) -> None:
-    """Idempotent: safe for databases initialized before v0.2.0."""
+    """Idempotent: safe for databases initialized before v0.2.0.
+
+    v0.6.0 adds inventory_fingerprint. Existing rows keep NULL, which is read as
+    "inventory was not tracked when this was recorded" and triggers
+    re-verification rather than an unjustified FRESH.
+    """
     conn.execute(_VERIFICATIONS_TABLE)
+    columns = {
+        row["name"] for row in conn.execute("PRAGMA table_info(verifications)")
+    }
+    if "inventory_fingerprint" not in columns:
+        conn.execute("ALTER TABLE verifications ADD COLUMN inventory_fingerprint TEXT")
+    conn.commit()
 
 
 def save_verification(conn: sqlite3.Connection, result: VerificationResult) -> str:
-    """Store an immutable verification result with evidence fingerprints."""
+    """Store an immutable verification result with its dependency fingerprints.
+
+    v0.6.0: fingerprints come from the complete dependency set, not from the
+    bounded list of evidence shown to the user. Previously a route/test claim
+    stored only route files, so editing the test that justified the association
+    left the result reported as FRESH.
+    """
     ensure_verifications_table(conn)
     repo = conn.execute("SELECT id FROM repositories LIMIT 1").fetchone()
     repo_id = repo["id"] if repo else "unknown"
-    fingerprints = [
-        {"path": e.path, "sha256": e.sha256}
-        for e in result.supporting
-        if e.sha256
-    ]
+
+    paths: set[str] = set(result.dependencies)
+    paths |= {e.path for e in result.supporting}
     # Contradiction evidence participates in freshness too: if the stub changes,
     # the contradiction must be re-checked.
     for c in result.contradictions:
-        fingerprints += [
-            {"path": e.path, "sha256": e.sha256} for e in c.evidence if e.sha256
-        ]
+        paths |= {e.path for e in c.evidence}
+
+    sha_by_path = {
+        row["path"]: row["sha256"]
+        for row in conn.execute("SELECT path, sha256 FROM files").fetchall()
+    }
+    fingerprints = [
+        {"path": p, "sha256": sha_by_path.get(p)} for p in sorted(paths)
+    ]
     vid = f"ver-{uuid.uuid4().hex[:10]}"
     conn.execute(
         "INSERT INTO verifications"
         "(id, repository_id, claim_slug, status, scan_id, result_json, "
-        " evidence_fingerprints_json, engine_version, created_at) "
-        "VALUES (?,?,?,?,?,?,?,?,?)",
+        " evidence_fingerprints_json, inventory_fingerprint, engine_version, "
+        " created_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?)",
         (
             vid,
             repo_id,
@@ -1130,6 +1272,7 @@ def save_verification(conn: sqlite3.Connection, result: VerificationResult) -> s
             result.scan_id,
             json.dumps(result.to_dict()),
             json.dumps(fingerprints),
+            result.inventory,
             result.engine_version,
             result.verified_at,
         ),
@@ -1155,6 +1298,82 @@ def load_latest_verification(
         json.loads(row["evidence_fingerprints_json"]),
         row["created_at"],
     )
+
+
+def scan_state(conn: sqlite3.Connection, root=None) -> dict:
+    """Describe the evidence snapshot a verification is about to be computed from.
+
+    Verification recomputes conclusions from the last persisted scan. That is
+    not the same as the working tree, and reporting a fresh evaluation timestamp
+    without saying so implies evidence that was never collected. This returns
+    the facts a caller needs to be honest about what was actually examined:
+
+      scan_id / scanned_at  which snapshot was used
+      files_scanned         its size
+      working_tree          "unchecked", "matches_scan", or "changed_since_scan"
+      changed_paths         files whose content no longer matches the snapshot
+    """
+    from pathlib import Path
+
+    from devtime import paths as _paths
+
+    row = conn.execute(
+        "SELECT id, started_at, finished_at, file_count, status FROM scans "
+        "WHERE status = 'completed' ORDER BY started_at DESC LIMIT 1"
+    ).fetchone()
+    if row is None:
+        return {
+            "scan_id": None,
+            "scanned_at": None,
+            "files_scanned": 0,
+            "working_tree": "never_scanned",
+            "changed_paths": [],
+        }
+
+    state = {
+        "scan_id": row["id"],
+        "scanned_at": row["finished_at"] or row["started_at"],
+        "files_scanned": row["file_count"],
+        "working_tree": "unchecked",
+        "changed_paths": [],
+    }
+
+    # A bounded, read-only check of the files this scan recorded. Hashing is
+    # capped so a verification never turns into a second full scan.
+    import hashlib as _hashlib
+
+    repo_root = Path(root) if root else _paths.repo_root()
+    rows = conn.execute(
+        "SELECT path, sha256 FROM files WHERE last_seen_scan_id = ? AND sha256 IS NOT NULL",
+        (row["id"],),
+    ).fetchall()
+    if not rows:
+        return state
+
+    _CHECK_CAP = 400
+    changed: list[str] = []
+    checked = 0
+    for f in rows:
+        if checked >= _CHECK_CAP:
+            state["working_tree"] = "partially_checked"
+            break
+        target = repo_root / f["path"]
+        checked += 1
+        try:
+            if not target.exists():
+                changed.append(f["path"])
+                continue
+            digest = _hashlib.sha256(target.read_bytes()).hexdigest()
+        except OSError:
+            continue
+        if digest != f["sha256"]:
+            changed.append(f["path"])
+    if changed:
+        state["working_tree"] = "changed_since_scan"
+        state["changed_paths"] = sorted(changed)[:20]
+    elif state["working_tree"] == "unchecked":
+        state["working_tree"] = "matches_scan"
+    return state
 
 
 def claims_affected_by_paths(
@@ -1190,23 +1409,68 @@ def claims_affected_by_paths(
 
 
 def freshness_for(conn: sqlite3.Connection, slug: str) -> tuple[str, list[str]]:
-    """Compare stored evidence fingerprints against current file hashes.
+    """Compare stored dependency fingerprints against the latest scan.
 
-    Returns (freshness, changed_paths). Never flags unrelated file changes:
-    only files that were evidence for this claim participate.
+    Returns (freshness, changed_paths). Only files this claim actually depended
+    on participate, so unrelated edits never mark a claim stale.
+
+    v0.6.0 fixes three ways a result could look current when it was not:
+      - a dependency file DELETED from the repository (its old row survived in
+        `files`, so the hash still matched and the claim looked FRESH);
+      - a dependency file that was never re-seen by the latest scan (ignored,
+        renamed, or excluded by a policy change);
+      - a change to the claim's INVENTORY, such as a new route appearing, which
+        changes the answer without changing any previously recorded file.
     """
     latest = load_latest_verification(conn, slug)
     if latest is None:
         return NEEDS_VERIFICATION, []
-    _, fingerprints, _ = latest
+    result_dict, fingerprints, _ = latest
+
+    if not fingerprints:
+        # Nothing was recorded to justify this result, so "fresh" cannot be
+        # asserted. Re-verify rather than claim currency we cannot support.
+        return NEEDS_VERIFICATION, []
+
+    scan_id = _latest_scan_id(conn)
+    if scan_id is None:
+        return NEEDS_VERIFICATION, []
+
+    current = {
+        row["path"]: row
+        for row in conn.execute(
+            "SELECT path, sha256, last_seen_scan_id FROM files"
+        ).fetchall()
+    }
+
     changed: list[str] = []
     for fp in fingerprints:
-        row = conn.execute(
-            "SELECT sha256 FROM files WHERE path = ? ORDER BY last_seen_scan_id DESC LIMIT 1",
-            (fp["path"],),
-        ).fetchone()
-        if row is None or row["sha256"] != fp["sha256"]:
+        row = current.get(fp["path"])
+        if row is None:
+            changed.append(fp["path"])  # never seen again
+            continue
+        if row["last_seen_scan_id"] != scan_id:
+            # Present in an older scan only: deleted, renamed, or now ignored.
             changed.append(fp["path"])
+            continue
+        if row["sha256"] != fp["sha256"]:
+            changed.append(fp["path"])
+
     if changed:
         return STALE, sorted(set(changed))
+
+    # The recorded surface set must still match what the repository has now.
+    stored_inventory = conn.execute(
+        "SELECT inventory_fingerprint FROM verifications WHERE claim_slug = ? "
+        "ORDER BY created_at DESC LIMIT 1",
+        (slug,),
+    ).fetchone()
+    stored = stored_inventory["inventory_fingerprint"] if stored_inventory else None
+    if stored is not None:
+        try:
+            current_result = verify_claim(conn, slug)
+        except KeyError:
+            return FRESH, []
+        if current_result.inventory is not None and current_result.inventory != stored:
+            return STALE, ["(the set of routes or handlers this claim covers changed)"]
     return FRESH, []

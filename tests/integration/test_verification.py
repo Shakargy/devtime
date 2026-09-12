@@ -829,3 +829,356 @@ def test_application_routes_are_still_counted_alongside_fixtures(tmp_path, monke
     result = _verify("route-test-coverage")
     # Only the application route is in the inventory.
     assert "of 1 routes" in " ".join(result.why)
+
+
+# --- v0.6.0: complete freshness dependencies -------------------------------------
+#
+# v0.5.x stored only the bounded evidence shown to the user, so results stayed
+# FRESH after the files that justified them changed or disappeared.
+
+ROUTE_USERS_V6 = """
+import express from "express";
+const router = express.Router();
+router.get("/users", listUsers);
+"""
+
+TEST_IMPORTS_USERS = """
+import router from "../src/routes/users";
+import { describe, it } from "vitest";
+describe("users", () => { it("lists", () => {}); });
+"""
+
+WEBHOOK_VERIFIED_V6 = """
+import express from "express";
+import Stripe from "stripe";
+const stripe = new Stripe(process.env.KEY);
+const router = express.Router();
+router.post("/api/stripe/webhook", (req, res) => {
+  stripe.webhooks.constructEvent(req.body, sig, secret);
+});
+"""
+
+
+def _freshness(slug):
+    conn = connection.connect()
+    try:
+        return ver.freshness_for(conn, slug)
+    finally:
+        conn.close()
+
+
+def _record(slug):
+    conn = connection.connect()
+    try:
+        ver.save_verification(conn, ver.verify_claim(conn, slug))
+    finally:
+        conn.close()
+
+
+def test_editing_the_justifying_test_marks_the_claim_stale(tmp_path, monkeypatch):
+    # v0.5.x bug: only route files were fingerprinted, so changing the test that
+    # established the association left the result reported as FRESH.
+    _repo(tmp_path, {
+        "src/routes/users.ts": ROUTE_USERS_V6,
+        "tests/users.test.ts": TEST_IMPORTS_USERS,
+    })
+    _init_scan(tmp_path, monkeypatch)
+    _record("route-test-coverage")
+    assert _freshness("route-test-coverage")[0] == ver.FRESH
+
+    (tmp_path / "tests/users.test.ts").write_text(
+        TEST_IMPORTS_USERS.replace("lists", "renamed"), encoding="utf-8"
+    )
+    assert runner.invoke(app, ["scan", "--refresh"]).exit_code == 0
+
+    freshness, changed = _freshness("route-test-coverage")
+    assert freshness == ver.STALE
+    assert any("users.test.ts" in p for p in changed)
+
+
+def test_deleting_an_evidence_file_marks_the_claim_stale(tmp_path, monkeypatch):
+    # v0.5.x bug: the old files row survived, so the hash still matched and a
+    # deleted dependency looked current.
+    _repo(tmp_path, {"src/billing/wh.ts": WEBHOOK_VERIFIED_V6})
+    _init_scan(tmp_path, monkeypatch)
+    _record("billing-webhook-signature")
+    assert _freshness("billing-webhook-signature")[0] == ver.FRESH
+
+    (tmp_path / "src/billing/wh.ts").unlink()
+    assert runner.invoke(app, ["scan", "--refresh"]).exit_code == 0
+
+    freshness, changed = _freshness("billing-webhook-signature")
+    assert freshness == ver.STALE
+    assert any("wh.ts" in p for p in changed)
+
+
+def test_a_new_route_invalidates_a_set_level_claim(tmp_path, monkeypatch):
+    # A claim about "all routes" depends on the route inventory, not only on the
+    # files that existed when it was recorded.
+    _repo(tmp_path, {
+        "src/routes/users.ts": ROUTE_USERS_V6,
+        "tests/users.test.ts": TEST_IMPORTS_USERS,
+    })
+    _init_scan(tmp_path, monkeypatch)
+    _record("route-test-coverage")
+    assert _freshness("route-test-coverage")[0] == ver.FRESH
+
+    _repo(tmp_path, {
+        "src/routes/orders.ts":
+            'import express from "express";\n'
+            "const router = express.Router();\n"
+            'router.post("/orders", createOrder);\n',
+    })
+    assert runner.invoke(app, ["scan", "--refresh"]).exit_code == 0
+    assert _freshness("route-test-coverage")[0] == ver.STALE
+
+
+def test_unrelated_change_still_does_not_invalidate(tmp_path, monkeypatch):
+    # Precision matters as much as completeness: staleness that fires on every
+    # commit teaches people to ignore staleness.
+    _repo(tmp_path, {
+        "src/routes/users.ts": ROUTE_USERS_V6,
+        "tests/users.test.ts": TEST_IMPORTS_USERS,
+        "NOTES.md": "# notes\n",
+    })
+    _init_scan(tmp_path, monkeypatch)
+    _record("route-test-coverage")
+
+    (tmp_path / "NOTES.md").write_text("# notes changed\n", encoding="utf-8")
+    assert runner.invoke(app, ["scan", "--refresh"]).exit_code == 0
+    assert _freshness("route-test-coverage")[0] == ver.FRESH
+
+
+def test_dependencies_exceed_displayed_evidence(tmp_path, monkeypatch):
+    # The dependency set must include the test files, which are not part of the
+    # bounded evidence list shown to a user.
+    _repo(tmp_path, {
+        "src/routes/users.ts": ROUTE_USERS_V6,
+        "tests/users.test.ts": TEST_IMPORTS_USERS,
+    })
+    _init_scan(tmp_path, monkeypatch)
+    conn = connection.connect()
+    try:
+        result = ver.verify_claim(conn, "route-test-coverage")
+    finally:
+        conn.close()
+    assert any("users.test.ts" in d for d in result.dependencies)
+    assert result.inventory  # a set-level claim records its inventory
+
+
+def test_verification_with_no_recorded_dependencies_is_not_fresh(tmp_path, monkeypatch):
+    # A result that recorded nothing cannot justify a FRESH label.
+    _repo(tmp_path, {"src/routes/users.ts": ROUTE_USERS_V6})
+    _init_scan(tmp_path, monkeypatch)
+    conn = connection.connect()
+    try:
+        ver.ensure_verifications_table(conn)
+        conn.execute(
+            "INSERT INTO verifications(id, repository_id, claim_slug, status, "
+            "scan_id, result_json, evidence_fingerprints_json, engine_version, "
+            "created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+            ("ver-empty", "r", "route-test-coverage", ver.SUPPORTED, "s",
+             "{}", "[]", "0.0.0", "2026-01-01T00:00:00+00:00"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    assert _freshness("route-test-coverage")[0] == ver.NEEDS_VERIFICATION
+
+
+def test_verifications_table_migrates_idempotently(tmp_path, monkeypatch):
+    # Databases created before v0.6.0 lack inventory_fingerprint.
+    _repo(tmp_path, {"src/routes/users.ts": ROUTE_USERS_V6})
+    _init_scan(tmp_path, monkeypatch)
+    conn = connection.connect()
+    try:
+        conn.execute("DROP TABLE IF EXISTS verifications")
+        conn.execute(
+            "CREATE TABLE verifications (id TEXT PRIMARY KEY, repository_id TEXT "
+            "NOT NULL, claim_slug TEXT NOT NULL, status TEXT NOT NULL, scan_id "
+            "TEXT, result_json TEXT NOT NULL, evidence_fingerprints_json TEXT "
+            "NOT NULL DEFAULT '[]', engine_version TEXT NOT NULL, created_at "
+            "TEXT NOT NULL)"
+        )
+        conn.commit()
+        ver.ensure_verifications_table(conn)
+        ver.ensure_verifications_table(conn)  # idempotent
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(verifications)")}
+        assert "inventory_fingerprint" in cols
+        # And it still accepts writes.
+        ver.save_verification(conn, ver.verify_claim(conn, "route-test-coverage"))
+    finally:
+        conn.close()
+
+
+# --- v0.6.0: scan staleness is explicit ------------------------------------------
+
+def test_scan_state_reports_working_tree_drift(tmp_path, monkeypatch):
+    _repo(tmp_path, {"src/billing/wh.ts": WEBHOOK_VERIFIED_V6})
+    _init_scan(tmp_path, monkeypatch)
+    conn = connection.connect()
+    try:
+        assert ver.scan_state(conn)["working_tree"] == "matches_scan"
+    finally:
+        conn.close()
+
+    (tmp_path / "src/billing/wh.ts").write_text(
+        WEBHOOK_VERIFIED_V6 + "\n// edited\n", encoding="utf-8"
+    )
+    conn = connection.connect()
+    try:
+        state = ver.scan_state(conn)
+        assert state["working_tree"] == "changed_since_scan"
+        assert any("wh.ts" in p for p in state["changed_paths"])
+        assert state["scan_id"]
+    finally:
+        conn.close()
+
+
+def test_cli_warns_when_results_come_from_a_stale_scan(tmp_path, monkeypatch):
+    _repo(tmp_path, {"src/billing/wh.ts": WEBHOOK_VERIFIED_V6})
+    _init_scan(tmp_path, monkeypatch)
+    (tmp_path / "src/billing/wh.ts").write_text(
+        WEBHOOK_VERIFIED_V6 + "\n// edited after the scan\n", encoding="utf-8"
+    )
+    result = runner.invoke(app, ["verify", "billing-webhook-signature"])
+    assert result.exit_code == 0
+    # Terminal wrapping is not behavior: compare on normalized whitespace.
+    out = " ".join(result.stdout.split())
+    assert "no longer matches your working tree" in out
+    assert "dtc scan" in out
+    assert "wh.ts" in out
+
+
+def test_json_output_carries_the_evidence_snapshot(tmp_path, monkeypatch):
+    _repo(tmp_path, {"src/billing/wh.ts": WEBHOOK_VERIFIED_V6})
+    _init_scan(tmp_path, monkeypatch)
+    result = runner.invoke(app, ["verify", "--json"])
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    snap = payload["evidence_snapshot"]
+    assert snap["scan_id"]
+    assert snap["working_tree"] in ("matches_scan", "partially_checked")
+    assert "dependency_count" in payload["results"][0]
+
+
+def test_mcp_verify_claim_discloses_stale_snapshot(tmp_path, monkeypatch):
+    from devtime.mcp.transport import build_server
+
+    _repo(tmp_path, {"src/billing/wh.ts": WEBHOOK_VERIFIED_V6})
+    _init_scan(tmp_path, monkeypatch)
+    (tmp_path / "src/billing/wh.ts").write_text(
+        WEBHOOK_VERIFIED_V6 + "\n// edited\n", encoding="utf-8"
+    )
+    server = build_server()
+    out = str(asyncio.run(
+        server.call_tool("verify_claim", {"claim_id": "billing-webhook-signature"})
+    ))
+    assert "staleness_warning" in out
+    assert "dtc scan" in out
+
+
+# --- v0.6.0: request-based association -------------------------------------------
+#
+# v0.5.1 removed the false positives but could only see imports, so it abstained
+# on the common real pattern: a test that drives a running app by URL.
+
+SUPERTEST_TEST = """
+import request from "supertest";
+import { app } from "../src/app";
+describe("api", () => {
+  it("returns users", async () => { await request(app).get("/users").expect(200); });
+});
+"""
+
+TWO_METHOD_ROUTES = """
+import express from "express";
+const router = express.Router();
+router.get("/users", listUsers);
+router.post("/users", createUser);
+"""
+
+FASTAPI_ROUTE = """
+from fastapi import APIRouter
+router = APIRouter()
+
+@router.get("/items")
+def list_items():
+    return []
+"""
+
+FASTAPI_CLIENT_TEST = """
+from fastapi.testclient import TestClient
+
+def test_list_items():
+    r = client.get("/items")
+    assert r.status_code == 200
+"""
+
+
+def test_supertest_request_associates_the_exact_route(tmp_path, monkeypatch):
+    _repo(tmp_path, {
+        "src/routes/users.ts": TWO_METHOD_ROUTES,
+        "tests/api.test.ts": SUPERTEST_TEST,
+    })
+    _init_scan(tmp_path, monkeypatch)
+    result = _verify("route-test-coverage")
+    # GET is requested by the test; POST on the same path is not.
+    assert result.status == ver.WEAK
+    assert "1 of 2" in " ".join(result.why)
+    assert any("POST /users" in m for m in result.missing)
+    assert any("requests" in e.observation for e in result.supporting)
+
+
+def test_fastapi_testclient_request_associates(tmp_path, monkeypatch):
+    _repo(tmp_path, {
+        "app/api/items.py": FASTAPI_ROUTE,
+        "tests/test_items.py": FASTAPI_CLIENT_TEST,
+    })
+    _init_scan(tmp_path, monkeypatch)
+    assert _verify("route-test-coverage").status == ver.SUPPORTED
+
+
+def test_non_url_get_calls_are_not_requests(tmp_path, monkeypatch):
+    # `map.get("key")` is not an HTTP request: only literals starting with "/"
+    # are treated as route paths.
+    _repo(tmp_path, {
+        "src/routes/users.ts": ROUTE_USERS_V6,
+        "tests/util.test.ts":
+            'import { describe, it } from "vitest";\n'
+            'describe("cache", () => { it("reads", () => { cache.get("users"); }); });\n',
+    })
+    _init_scan(tmp_path, monkeypatch)
+    assert _verify("route-test-coverage").status == ver.WEAK
+
+
+def test_request_to_a_different_path_does_not_associate(tmp_path, monkeypatch):
+    _repo(tmp_path, {
+        "src/routes/users.ts": ROUTE_USERS_V6,
+        "tests/api.test.ts":
+            'import request from "supertest";\n'
+            'describe("api", () => { it("x", async () => '
+            '{ await request(app).get("/orders"); }); });\n',
+    })
+    _init_scan(tmp_path, monkeypatch)
+    assert _verify("route-test-coverage").status == ver.WEAK
+
+
+def test_prefix_relative_routes_are_unresolved_not_untested(tmp_path, monkeypatch):
+    # A route declared as "/" or "/{id}" on a router that is mounted elsewhere
+    # has no knowable full URL. Reporting it as "no test found" would blame the
+    # repository for a gap in DevTime's analysis.
+    _repo(tmp_path, {
+        "app/api/items.py":
+            "from fastapi import APIRouter\n"
+            "router = APIRouter()\n\n"
+            '@router.get("/")\n'
+            "def list_items():\n"
+            "    return []\n",
+    })
+    _init_scan(tmp_path, monkeypatch)
+    result = _verify("route-test-coverage")
+    assert result.status == ver.WEAK
+    blob = " ".join(result.why).lower()
+    assert "mount prefix" in blob
+    assert "not evidence that they lack tests" in blob

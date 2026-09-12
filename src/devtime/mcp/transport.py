@@ -152,7 +152,20 @@ def build_server():
                     "error": "unknown_claim",
                     "hint": "Call verify_claim with no claim_id to list built-in claims.",
                 }
-            return result.to_dict()
+            payload = result.to_dict()
+            # An agent cannot see the user's working tree, so it must be told
+            # which snapshot this conclusion came from and whether that snapshot
+            # is still current.
+            state = ver.scan_state(conn)
+            payload["evidence_snapshot"] = state
+            if state.get("working_tree") == "changed_since_scan":
+                payload["staleness_warning"] = (
+                    "This result was computed from a stored scan that no longer "
+                    "matches the working tree. Files changed since the scan: "
+                    + ", ".join(state.get("changed_paths", [])[:5])
+                    + ". Ask the user to run `dtc scan` before relying on it."
+                )
+            return payload
         finally:
             conn.close()
 

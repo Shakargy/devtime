@@ -22,6 +22,24 @@ _IMPORT_RE = re.compile(
 )
 
 
+# HTTP requests made by a test: supertest `request(app).get("/users")`, FastAPI
+# `client.post("/items")`, fetch-style helpers. Only literals that look like a
+# URL path count, so `map.get("key")` is not mistaken for a request (v0.6.0).
+_REQUEST_RE = re.compile(
+    r"""\.(get|post|put|patch|delete|head|options)\(\s*['"](/[^'"]*)['"]""",
+    re.I,
+)
+
+
+def _extract_requests(text: str) -> list[dict]:
+    seen: list[dict] = []
+    for match in _REQUEST_RE.finditer(text):
+        entry = {"method": match.group(1).upper(), "path": match.group(2)}
+        if entry not in seen:
+            seen.append(entry)
+    return seen[:50]
+
+
 def _extract_imports(text: str) -> list[str]:
     mods: list[str] = []
     for m in _IMPORT_RE.finditer(text):
@@ -45,6 +63,7 @@ def extract_test_signals(file: WalkedFile) -> list[Signal]:
     text = read_text(file)
     e2e = _is_e2e(file.rel_path)
     imports = _extract_imports(text)
+    requests = _extract_requests(text)
     signals: list[Signal] = []
     for match in _TEST_NAME_RE.finditer(text):
         name = match.group(1) or match.group(2)
@@ -55,7 +74,7 @@ def extract_test_signals(file: WalkedFile) -> list[Signal]:
                     name=name,
                     file=file,
                     confidence=0.4 if e2e else 0.8,
-                    metadata={"e2e": e2e, "imports": imports},
+                    metadata={"e2e": e2e, "imports": imports, "requests": requests},
                 )
             )
     return signals

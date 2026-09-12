@@ -75,11 +75,11 @@ do. Read this before trusting any single output.
 - Four built-in claims (route-test-coverage, admin-authorization,
   billing-webhook-signature, jwt-authentication). User-defined claims are not
   supported yet, deliberately.
-- Route test association is established from test imports only, and a static
-  import association is not execution coverage. Tests that exercise a route
-  through a running server (supertest, TestClient) or through an unresolved
-  helper are reported as unassociated, so this claim currently abstains on many
-  real repositories.
+- Route test association accepts a test that requests the exact route path or
+  imports the route's implementation. It is still a static association, not
+  execution coverage. Tests that build URLs dynamically (an f-string or a
+  settings variable) and routes declared relative to an unresolved router mount
+  prefix are reported as unresolved rather than untested.
 - Admin authorization is established only from a guard at the route's own call
   site. Guards applied by a router mount, a server-wide middleware, or a
   framework decorator are reported as unresolved. WEAK means DevTime found no

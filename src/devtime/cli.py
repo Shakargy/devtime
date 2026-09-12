@@ -157,21 +157,52 @@ def verify(
             if result.status in ver.APPLICABLE_STATUSES:
                 ver.save_verification(conn, result)
 
+        state = ver.scan_state(conn)
+
         if as_json:
             console.print_json(
                 _json.dumps(
                     {
                         "schema_version": "2",
                         "command": "verify",
+                        "evidence_snapshot": state,
                         "results": [r.to_dict() for r in results],
                     }
                 )
             )
             return
 
+        _print_scan_state(state)
         _print_report(results, single=bool(claim))
     finally:
         conn.close()
+
+
+def _print_scan_state(state: dict) -> None:
+    """Say plainly which snapshot these conclusions came from.
+
+    Verification reads the last persisted scan, not the working tree. When the
+    two disagree, that must be the first thing a reader sees.
+    """
+    tree = state.get("working_tree")
+    if tree == "changed_since_scan":
+        changed = state.get("changed_paths") or []
+        console.print(
+            "[yellow]These results were computed from a scan that no longer "
+            "matches your working tree.[/yellow]"
+        )
+        for p in changed[:5]:
+            console.print(f"  changed since the scan: {p}", markup=False)
+        if len(changed) > 5:
+            console.print(f"  ... and {len(changed) - 5} more", markup=False)
+        console.print("Run [bold]dtc scan[/bold] to verify against current code.")
+        console.print("")
+    elif tree == "partially_checked":
+        console.print(
+            "[dim]Working-tree comparison was capped; some files were not "
+            "re-checked against the scan.[/dim]"
+        )
+        console.print("")
 
 
 def _print_report(results: list, single: bool) -> None:
