@@ -35,6 +35,7 @@ from devtime.snapshots import (
 SCHEMA_VERSION = "1"
 COMPARISON = "merge-base..head"
 _CHANGED_FILES_CAP = 200
+_POLICY_FILES = (".devtimeignore", ".gitignore")
 
 LIMITATIONS = [
     "Advisory only: claim statuses come from static analysis and are not a merge "
@@ -88,6 +89,23 @@ def run_review(cwd: Path, base_ref: str, head_ref: str = "HEAD") -> dict:
         if f.old_path:
             changed_paths.add(f.old_path)
 
+    # Each snapshot is scanned with the ignore rules committed at that snapshot.
+    # When a change edits those rules, a transition can come from a change in
+    # WHAT DevTime scans rather than in what the code does. Found by running
+    # this review on DevTime's own pull request: adding a .devtimeignore made
+    # jwt-authentication read as a "regression" when no code had changed.
+    policy_changes = sorted(
+        p for p in changed_paths if p.rsplit("/", 1)[-1] in _POLICY_FILES
+    )
+    if policy_changes:
+        warnings.append(
+            "This change edits ignore rules ("
+            + ", ".join(policy_changes)
+            + "). Each commit is scanned with its own rules, so some transitions "
+            "may reflect a change in what DevTime scans rather than a change in "
+            "what the code does."
+        )
+
     try:
         with review_workspace() as ws:
             base_dir = ws / "base"
@@ -140,6 +158,7 @@ def run_review(cwd: Path, base_ref: str, head_ref: str = "HEAD") -> dict:
         "changed_files": [f.to_dict() for f in files[:_CHANGED_FILES_CAP]],
         "summary": counts,
         "transitions": [t.to_dict() for t in rv.reportable(transitions)],
+        "scan_policy_changed": policy_changes,
         "warnings": warnings,
         "limitations": LIMITATIONS,
         "error": None,

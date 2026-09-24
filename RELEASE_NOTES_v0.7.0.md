@@ -91,6 +91,14 @@ subdirectory compared two empty snapshots and reported nothing changed. It now
 archives from the repository root, and an empty comparison is reported as a
 failure or a warning, never as a clean result.
 
+And one from the release's own pull request, which ran the new workflow on
+DevTime: that PR adds a `.devtimeignore`, so the merge base scanned DevTime's
+packaged demo and the head did not. The review reported `jwt-authentication`
+as a regression when no code had changed; only the scanned surface had. A
+review now discloses when a change edits ignore rules (`scan_policy_changed`
+in JSON, plus a warning), so a change in what DevTime scans is not mistaken for
+a change in what the code does.
+
 ## Compatibility
 
 - New command `dtc review`; no command, claim id, or MCP tool was renamed or
@@ -104,10 +112,10 @@ failure or a warning, never as a clean result.
 
 ## Notes
 
-- 213 passing tests (40 new): transition classification, merge-base
+- 215 passing tests (42 new): transition classification, merge-base
   semantics, multi-commit pull requests, renames, deletions, subdirectory scope,
   shallow clones, unknown refs, workspace cleanup, a repository left untouched,
-  the lexer, and every self-scan finding above.
+  ignore-rule changes, the lexer, and every self-scan finding above.
 - Known limits: uncommitted changes are not reviewed, a local untracked
   `.devtimeignore` is not applied to snapshots, and transitions inherit every
   static-analysis limit of `dtc verify`. See LIMITATIONS.md.

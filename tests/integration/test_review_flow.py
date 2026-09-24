@@ -204,6 +204,33 @@ def test_subdirectory_scope_reviews_that_subdirectory(tmp_path):
     assert report["summary"]["regression"] == 1
 
 
+def test_ignore_rule_changes_are_disclosed(repo):
+    # Found by running this review on DevTime's own pull request: the PR added a
+    # .devtimeignore, a claim's evidence moved out of scope, and the report read
+    # like the code had regressed. Transitions caused by a change in WHAT is
+    # scanned must be labelled as such.
+    _branch(repo)
+    _write(repo, ".devtimeignore", "src/admin/\n")
+    _commit(repo, "exclude admin from scans")
+
+    report = run_review(repo, "main")
+
+    assert report["status"] == "completed"
+    assert report["scan_policy_changed"] == [".devtimeignore"]
+    assert any("ignore rules" in w for w in report["warnings"])
+    admin = next(t for t in report["transitions"] if t["claim_id"] == "admin-authorization")
+    assert admin["kind"] == "no_longer_applicable"
+
+
+def test_no_policy_warning_when_ignore_rules_are_untouched(repo):
+    _branch(repo)
+    _write(repo, "src/admin/panel.ts", GUARDED_PLUS_BARE)
+    _commit(repo, "code only")
+    report = run_review(repo, "main")
+    assert report["scan_policy_changed"] == []
+    assert not any("ignore rules" in w for w in report["warnings"])
+
+
 # --- failures are failures ------------------------------------------------------
 
 def test_unknown_base_ref_fails_and_never_looks_clean(repo, monkeypatch):

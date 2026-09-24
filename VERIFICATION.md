@@ -185,6 +185,10 @@ How it works:
   counted, so a review does not repeat itself on every run.
 - Run from a subdirectory, it reviews that subdirectory, just as `dtc scan`
   scans the current directory.
+- Each commit is scanned with the ignore rules committed at that commit. When
+  the change itself edits `.devtimeignore` or `.gitignore`, the review says so
+  (`scan_policy_changed` in JSON, plus a warning): a transition may then reflect
+  a change in what DevTime scans rather than in what the code does.
 
 Output formats: `--format text` (default), `--format json`, and
 `--format markdown` for a GitHub job summary. `--json-out PATH` writes the JSON
