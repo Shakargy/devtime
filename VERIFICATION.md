@@ -149,6 +149,96 @@ time, files scanned, and the working-tree relationship), and the MCP
 `verify_claim` tool adds an explicit `staleness_warning` so an agent that cannot
 see your files is told which snapshot it is reasoning about.
 
+## Change review (v0.7)
+
+`dtc review` answers the question a reviewer actually has: what did this change
+do to what the repository can support?
+
+```bash
+dtc review --base origin/main
+```
+
+```text
+DevTime review
+  base   origin/main  (merge base 579e524da402)
+  head   HEAD  (ea436921979e)
+  scope  .   2 file(s) changed
+
+Regression: admin-authorization  SUPPORTED -> WEAK
+  base: 1 of 1 administrative route(s) have an authorization guard at their own call site.
+  head: 1 of 2 administrative route(s) have an authorization guard at their own call site.
+  changed evidence: src/admin/panel.ts
+  missing now: Authorization evidence for: GET /admin/export (src/admin/panel.ts)
+```
+
+How it works:
+
+- It compares **merge-base..head**, the same range a pull request's "Files
+  changed" tab shows. Commits added to the base branch after the head branched
+  are not attributed to the change.
+- Both commits are extracted with `git archive` into a temporary directory that
+  DevTime creates and removes. Your working tree, index, branch, worktree list,
+  and `.devtime/` are never touched. No repository code is executed.
+- Every built-in claim is verified at both commits, and each claim gets one
+  transition: `regression`, `newly_applicable`, `no_longer_applicable`,
+  `improvement`, `evidence_changed`, or `unchanged`. Unchanged claims are only
+  counted, so a review does not repeat itself on every run.
+- Run from a subdirectory, it reviews that subdirectory, just as `dtc scan`
+  scans the current directory.
+- Each commit is scanned with the ignore rules committed at that commit. When
+  the change itself edits `.devtimeignore` or `.gitignore`, the review says so
+  (`scan_policy_changed` in JSON, plus a warning): a transition may then reflect
+  a change in what DevTime scans rather than in what the code does.
+
+Output formats: `--format text` (default), `--format json`, and
+`--format markdown` for a GitHub job summary. `--json-out PATH` writes the JSON
+report as well, whatever format is printed.
+
+Exit codes:
+
+| Code | Meaning |
+|------|---------|
+| 0 | The review ran. Findings do not change this: reviews are advisory. |
+| 1 | The review could not run (unknown ref, shallow clone, failed snapshot scan). |
+| 7 | A claim regressed, only when `--fail-on-regression` is passed. |
+
+A review that could not run never looks clean: it exits 1 and says why. The
+most common cause in CI is a shallow clone, which cannot provide the merge base.
+
+### Using it in GitHub Actions
+
+```yaml
+name: devtime-review
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  devtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install "devtime-ei==0.7.0"
+      - run: |
+          dtc review --base "origin/${GITHUB_BASE_REF}" \
+            --format markdown --json-out devtime-review.json >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: devtime-review
+          path: devtime-review.json
+```
+
+Pin the version so a DevTime upgrade cannot change results between two runs of
+the same pull request. Use `pull_request`, not `pull_request_target`: DevTime
+needs only read access and no secrets.
+
 ## Trust model
 
 - Deterministic and rule-driven. No AI, no network, no code execution.

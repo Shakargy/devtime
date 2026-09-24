@@ -113,8 +113,18 @@ actually verify in your repository, and when nothing applies it says what would
 make a claim verifiable instead of dead-ending.
 
 Truth and freshness are separate: when a file behind a verified claim changes,
-the claim goes STALE and names the file. `dtc risk --diff` reports which verified
-claims a diff destabilizes.
+the claim goes STALE and names the file.
+
+To review a change, compare claims at two commits:
+
+```bash
+dtc review --base origin/main
+```
+
+It reports what the change did to each claim (a regression, a claim that newly
+applies, evidence that changed under a claim that held) from isolated snapshots
+of both commits, without touching your working tree. It runs in GitHub Actions
+as an advisory job summary.
 
 See **[VERIFICATION.md](VERIFICATION.md)** for the full model and its limits.
 
@@ -217,6 +227,7 @@ Anything outside these six is out of scope for now. See [LIMITATIONS.md](LIMITAT
 | `dtc risk --diff` | Review a git diff for risky changes using local evidence (advisory). |
 | `dtc decision add` | Add a local decision record that can reduce uncertainty. |
 | `dtc verify [claim]` | Verify repository claims against evidence: status, contradictions, freshness (experimental). |
+| `dtc review --base <ref>` | Compare claims at two commits and report what the change did to them (advisory). |
 
 (Also available: `dtc evidence`, `dtc debt`, `dtc status`, `dtc doctor --privacy`,
 `dtc export`, `dtc reset`, `dtc mcp start`.)

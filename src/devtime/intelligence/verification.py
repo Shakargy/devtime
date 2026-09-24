@@ -378,17 +378,27 @@ def _verify_billing_webhook_signature(
 
         if kind == "webhook_signature_verification":
             verification_rows.append(row)
-            if not _is_test_path(row["path"]):
+            if not _is_non_app_path(row["path"]):
                 verify_files.add(row["path"])
             verifications.append(
                 _ref(row, "Verifies the provider's webhook signature.", "strong")
             )
-        elif kind == "route" and "webhook" in hay and _is_billingish(hay):
+        elif (
+            kind == "route"
+            and "webhook" in hay
+            and _is_billingish(hay)
+            and not _is_non_app_path(row["path"])
+        ):
             webhook_route_rows.append(row)
             webhook_routes.append(
                 _ref(row, "Billing webhook route is handled here.", "moderate")
             )
-        elif kind == "disabled_endpoint" and "webhook" in hay and _is_billingish(hay):
+        elif (
+            kind == "disabled_endpoint"
+            and "webhook" in hay
+            and _is_billingish(hay)
+            and not _is_non_app_path(row["path"])
+        ):
             stub_webhooks.append(
                 _ref(
                     row,
@@ -401,7 +411,14 @@ def _verify_billing_webhook_signature(
             signature_tests.append(
                 _ref(row, "Test exercises webhook signature behavior.", "moderate")
             )
-        elif kind == "dependency" and any(p in hay for p in _PROVIDER_TOKENS):
+        elif (
+            kind == "dependency"
+            and not _is_non_app_path(row["path"])
+            # The dependency's own name, never the file it appears in: an
+            # `import express` inside stripe-webhook.ts is not a Stripe
+            # dependency (v0.7.0, same class of bug as the v0.5.1 admin fix).
+            and any(p in str(row["name"] or "").lower() for p in _PROVIDER_TOKENS)
+        ):
             provider_deps.append(
                 _ref(row, "Payment provider dependency is declared.", "weak")
             )
@@ -498,6 +515,17 @@ def _verify_billing_webhook_signature(
             dependencies=dependencies,
             inventory=inventory,
         )
+
+    # No webhook route was extracted. A verification call in application code
+    # can still stand in for its own handler (for example a default-exported
+    # handler function), but a call inside a test, example, or fixture cannot
+    # protect production code (v0.7.0: this fallback previously used every
+    # verification signal in the repository).
+    verifications = [
+        ref
+        for ref, row in zip(verifications, verification_rows)
+        if not _is_non_app_path(row["path"])
+    ]
 
     if stub_webhooks and not verifications:
         for stub in stub_webhooks:
@@ -1041,6 +1069,10 @@ def _verify_admin_authorization(
     admin_routes: list[sqlite3.Row] = []
     for row in rows:
         if row["kind"] != "route":
+            continue
+        # Test, example, and fixture routes are not the application's surface
+        # (v0.7.0: applied to every claim, not only route test association).
+        if _is_non_app_path(row["path"]):
             continue
         meta = _meta(row)
         route_path = str(meta.get("path") or row["name"] or "").lower()

@@ -54,6 +54,70 @@ def read_text(file: WalkedFile) -> str:
         return ""
 
 
+def _blank(segment: str) -> str:
+    return "".join("\n" if c == "\n" else " " for c in segment)
+
+
+def code_only(text: str, language: str) -> str:
+    """Blank out comments and string literals, keeping executable code.
+
+    Behavior evidence must come from code that runs. A call named in a comment,
+    a docstring, an error message, or a detector's own search pattern is not a
+    call (v0.7.0: DevTime scanning its own repository found the literal
+    "stripe.Webhook.construct_event" inside its Python extractor and reported
+    signature verification as SUPPORTED).
+
+    Output has the same length and the same newlines as the input, so offsets
+    and line numbers still map to the original file.
+
+    This is a small lexer, not a parser. It errs toward hiding text: code inside
+    template-literal interpolations is blanked too, which can hide evidence but
+    never invents it.
+    """
+    python = language == "python"
+    out: list[str] = []
+    i, n = 0, len(text)
+    while i < n:
+        ch = text[i]
+        two = text[i : i + 2]
+        # Comments.
+        if (python and ch == "#") or (not python and two == "//"):
+            end = text.find("\n", i)
+            end = n if end == -1 else end
+            out.append(_blank(text[i:end]))
+            i = end
+            continue
+        if not python and two == "/*":
+            end = text.find("*/", i + 2)
+            end = n if end == -1 else end + 2
+            out.append(_blank(text[i:end]))
+            i = end
+            continue
+        # Strings.
+        if ch in "'\"" or (not python and ch == "`"):
+            quote = ch
+            if python and text[i : i + 3] in ('"""', "'''"):
+                quote = text[i : i + 3]
+            j = i + len(quote)
+            while j < n:
+                if text[j] == "\\":
+                    j += 2
+                    continue
+                if text.startswith(quote, j):
+                    j += len(quote)
+                    break
+                if len(quote) == 1 and quote != "`" and text[j] == "\n":
+                    break  # unterminated single-line string
+                j += 1
+            j = min(j, n)
+            out.append(_blank(text[i:j]))
+            i = j
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
 def classify_jwt_purpose(text: str, rel_path: str) -> str:
     """Classify what a JWT is used for (Trust Repair v0.0.6).
 

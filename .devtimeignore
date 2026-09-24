@@ -1,0 +1,9 @@
+# DevTime scanning its own repository.
+#
+# These directories are fixture corpora: small fake applications that DevTime's
+# tests and demo are built from. They contain admin routes, billing webhooks,
+# and JWT code on purpose, and are not DevTime's own application surface.
+# Secrets are always excluded by DevTime regardless of this file.
+fixtures/
+examples/
+src/devtime/resources/

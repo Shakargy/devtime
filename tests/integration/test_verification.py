@@ -1182,3 +1182,65 @@ def test_prefix_relative_routes_are_unresolved_not_untested(tmp_path, monkeypatc
     blob = " ".join(result.why).lower()
     assert "mount prefix" in blob
     assert "not evidence that they lack tests" in blob
+
+
+# --- v0.7.0: findings from running DevTime on its own repository -----------------
+
+DETECTOR_SOURCE = '''
+def extract(text):
+    if "stripe.Webhook.construct_event" in text:
+        return "found"
+    return None
+'''
+
+
+def test_detector_source_does_not_support_billing_webhooks(tmp_path, monkeypatch):
+    # DevTime's own python extractor contains the search string it looks for.
+    # Scanning DevTime reported billing-webhook-signature as SUPPORTED.
+    _repo(tmp_path, {"src/scanner/extractor.py": DETECTOR_SOURCE})
+    _init_scan(tmp_path, monkeypatch)
+    assert _verify("billing-webhook-signature").status != ver.SUPPORTED
+
+
+def test_signature_call_only_in_a_test_file_does_not_support_the_claim(tmp_path, monkeypatch):
+    # No webhook route is extracted, so the evaluator takes its fallback path.
+    # That path used every verification signal, including ones inside tests.
+    _repo(tmp_path, {
+        "tests/billing.test.ts":
+            'import Stripe from "stripe";\n'
+            "const stripe = new Stripe(k);\n"
+            "stripe.webhooks.constructEvent(body, sig, secret);\n",
+    })
+    _init_scan(tmp_path, monkeypatch)
+    assert _verify("billing-webhook-signature").status != ver.SUPPORTED
+
+
+def test_fixture_routes_are_not_admin_or_webhook_surface(tmp_path, monkeypatch):
+    # Test, example, and fixture routes were excluded from route test
+    # association in v0.5.1 but still counted for admin and webhook claims.
+    _repo(tmp_path, {
+        "fixtures/admin-app/repo/src/admin.ts":
+            'import express from "express";\n'
+            "const router = express.Router();\n"
+            'router.get("/admin/users", listUsers);\n',
+        "examples/billing/src/stripe-webhook.ts":
+            'import express from "express";\n'
+            "const router = express.Router();\n"
+            'router.post("/api/stripe/webhook", (req, res) => { res.json({}); });\n',
+    })
+    _init_scan(tmp_path, monkeypatch)
+    assert _verify("admin-authorization").status == ver.NOT_APPLICABLE
+    assert _verify("billing-webhook-signature").status == ver.NOT_APPLICABLE
+
+
+def test_signature_verification_records_its_line(tmp_path, monkeypatch):
+    _repo(tmp_path, {"src/billing/wh.ts": WEBHOOK_VERIFIED_V6})
+    _init_scan(tmp_path, monkeypatch)
+    conn = connection.connect()
+    try:
+        row = conn.execute(
+            "SELECT start_line FROM signals WHERE kind='webhook_signature_verification'"
+        ).fetchone()
+    finally:
+        conn.close()
+    assert row is not None and row["start_line"] == 7

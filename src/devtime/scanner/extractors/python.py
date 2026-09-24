@@ -9,6 +9,7 @@ from devtime.scanner.extractors.base import (
     classify_jwt_purpose,
     read_text,
     signal,
+    code_only,
 )
 from devtime.scanner.file_walker import WalkedFile
 
@@ -68,12 +69,19 @@ def extract_python_signals(file: WalkedFile) -> list[Signal]:
             signal("upload_endpoint", name="upload", file=file, confidence=0.8)
         )
 
-    if "stripe.Webhook.construct_event" in text:
+    # v0.7.0: a verification CALL in executable code. This very check once
+    # matched its own search string: DevTime scanning its own repository found
+    # "stripe.Webhook.construct_event" in this file and reported SUPPORTED.
+    verify_call = re.search(
+        r"\bWebhook\.construct_event\s*\(", code_only(text, "python")
+    )
+    if verify_call:
         signals.append(
             signal(
                 "webhook_signature_verification",
                 name="stripe",
                 file=file,
+                start_line=text.count(chr(10), 0, verify_call.start()) + 1,
                 confidence=0.9,
             )
         )

@@ -90,6 +90,26 @@ do. Read this before trusting any single output.
   coverage limitation listed here.
 - Statuses mean "per DevTime's evidence rules", not formal proof or a security
   guarantee. See [VERIFICATION.md](VERIFICATION.md).
+- Behavior evidence comes from executable code only: comments and string
+  literals are blanked by a small lexer before calls are matched. It is a lexer,
+  not a parser: code inside template-literal interpolations is blanked too, and
+  a JavaScript regex literal containing a quote can occasionally confuse it. It
+  errs toward hiding evidence, never inventing it.
+- Documentation is read as documentation of the repository. A project whose docs
+  discuss a technology (for example DevTime's own release notes about its JWT
+  claim) can show that claim as WEAK rather than NOT_APPLICABLE.
+
+## 6c. Change review limitations (v0.7)
+
+- `dtc review` compares commits. Uncommitted changes are not part of either
+  snapshot; the review warns when they exist.
+- Each snapshot is scanned with the ignore rules committed at that commit. A
+  local, untracked `.devtimeignore` is not applied, and files excluded by
+  `export-ignore` in `.gitattributes` are not part of a snapshot.
+- A shallow clone cannot provide the merge base. In GitHub Actions use
+  `fetch-depth: 0`.
+- Transitions come from the same static analysis as `dtc verify`, with the same
+  limits. A regression is a signal to look, not a verdict.
 
 ## 7. Performance limitations
 

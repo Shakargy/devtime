@@ -1,14 +1,23 @@
-# Advisory DevTime risk review (Builder Edition, Appendix F).
-# Starts advisory: exits 0 even when findings exist. Never blocks a PR on weak claims.
-name: devtime-risk-review
+# Advisory DevTime claim review on pull requests (v0.7.0).
+#
+# Verifies every built-in claim at the merge base and at the pull request head,
+# then publishes the claim transitions as a job summary and a JSON artifact.
+#
+# Advisory: regressions never fail this job. A review that cannot run (missing
+# ref, shallow clone, failed snapshot scan) DOES fail it, so a broken review is
+# never mistaken for a clean one.
+#
+# Security: runs on pull_request, never pull_request_target, with a read-only
+# token and no secrets. DevTime reads repository files as text and never
+# executes the code it reviews. It posts no comments.
+name: devtime-review
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   devtime:
@@ -16,13 +25,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          # Review the pull request's own head commit, so the compared range
+          # (merge-base..head) matches the "Files changed" tab.
+          ref: ${{ github.event.pull_request.head.sha }}
+          # The merge base is needed; a shallow clone cannot provide it.
           fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - run: pip install -e .
-      - run: dtc init
-      - run: dtc scan
-      - run: dtc risk --diff --base origin/main --format markdown > devtime-risk.md
-      - run: cat devtime-risk.md
-      # Commenting can be added later. First version keeps output as an artifact/summary.
+      - name: DevTime review
+        run: |
+          dtc review --base "origin/${GITHUB_BASE_REF}" --head HEAD \
+            --format markdown --json-out devtime-review.json >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload review report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: devtime-review
+          path: devtime-review.json
+          if-no-files-found: warn
