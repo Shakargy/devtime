@@ -7,6 +7,7 @@ import re
 from devtime.scanner.extractors.base import (
     Signal,
     classify_jwt_purpose,
+    code_only,
     read_text,
     signal,
 )
@@ -42,6 +43,7 @@ def _call_arguments(text: str, open_paren: int, limit: int = 600) -> str:
             if depth == 0:
                 return text[open_paren + 1 : i]
     return text[open_paren + 1 : end]
+_SIGNATURE_CALL_RE = re.compile(r"\bwebhooks\.constructEvent(?:Async)?\s*\(")
 _BULLMQ_WORKER_RE = re.compile(r"""new\s+Worker\(\s*['"]([^'"]+)['"]""")
 _BULLMQ_QUEUE_RE = re.compile(r"""new\s+Queue\(\s*['"]([^'"]+)['"]""")
 # Custom task-runner infrastructure (v0.1.3, Cal.com proof run): Cal.com's Tasker
@@ -94,12 +96,16 @@ def extract_typescript_signals(file: WalkedFile) -> list[Signal]:
             signal("middleware", name="auth", file=file, confidence=0.7)
         )
 
-    if "stripe.webhooks.constructEvent" in text:
+    # v0.7.0: a verification CALL in executable code, never the name alone in a
+    # comment or string. Any client variable (stripe, stripeClient, ...).
+    verify_call = _SIGNATURE_CALL_RE.search(code_only(text, "typescript"))
+    if verify_call:
         signals.append(
             signal(
                 "webhook_signature_verification",
                 name="stripe",
                 file=file,
+                start_line=text.count(chr(10), 0, verify_call.start()) + 1,
                 confidence=0.9,
             )
         )

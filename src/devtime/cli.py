@@ -5,6 +5,10 @@ The CLI is the first product surface. It must make trust visible.
 Exit codes (Appendix A):
   0 success | 1 general error | 2 not initialized | 3 scan failed
   4 migration failed | 5 privacy boundary violation | 6 fixture assertion failed
+  7 review found a regression (only with `dtc review --fail-on-regression`)
+
+`dtc review` exits 1 when the review could not run (bad ref, shallow clone,
+failed snapshot scan). A review that could not run is never reported as clean.
 """
 
 from __future__ import annotations
@@ -507,6 +511,48 @@ def risk(
 
     if review.state == STATE_REVIEW_FAILED:
         raise typer.Exit(code=1)
+
+
+@app.command()
+def review(
+    base: str = typer.Option(..., "--base", help="Base ref, e.g. origin/main."),
+    head: str = typer.Option("HEAD", "--head", help="Head ref to review."),
+    fmt: str = typer.Option("text", "--format", help="text, json, or markdown."),
+    json_out: Path = typer.Option(
+        None, "--json-out", help="Also write the JSON report to this file."
+    ),
+    fail_on_regression: bool = typer.Option(
+        False,
+        "--fail-on-regression",
+        help="Exit 7 when a claim regresses. Off by default: reviews are advisory.",
+    ),
+) -> None:
+    """Compare claims at two commits and report what the change did to them."""
+    import json as _json
+
+    from devtime.output.review import render_markdown, render_text
+    from devtime.review_flow import has_regression, run_review
+
+    if fmt not in ("text", "json", "markdown"):
+        console.print("[red]--format must be text, json, or markdown.[/red]")
+        raise typer.Exit(code=1)
+
+    report = run_review(Path.cwd(), base, head)
+
+    if json_out is not None:
+        json_out.write_text(_json.dumps(report, indent=2) + "\n", encoding="utf-8")
+
+    if fmt == "json":
+        typer.echo(_json.dumps(report, indent=2))
+    elif fmt == "markdown":
+        typer.echo(render_markdown(report))
+    else:
+        typer.echo(render_text(report))
+
+    if report["status"] != "completed":
+        raise typer.Exit(code=1)
+    if fail_on_regression and has_regression(report):
+        raise typer.Exit(code=7)
 
 
 # --------------------------------------------------------------------------- #
